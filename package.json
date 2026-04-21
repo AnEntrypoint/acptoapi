@@ -1,6 +1,6 @@
 {
   "name": "acp2openai",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "OpenAI-compatible HTTP facade over ACP (Kilo Code + opencode) — point any OpenAI SDK at it.",
   "type": "module",
   "bin": {
