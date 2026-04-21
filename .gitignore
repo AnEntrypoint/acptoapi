@@ -6,3 +6,6 @@ node_modules
 .test-out.log
 *.tmp
 .thebird-cfg
+
+.server.log
+.server.err
