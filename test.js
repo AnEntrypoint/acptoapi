@@ -2,6 +2,8 @@ import assert from 'assert';
 import { createServer } from './lib/server.js';
 import { splitModel, probe, resolveBackend } from './lib/acp-client.js';
 import { openAIMessagesToACP, createEventMapper } from './lib/translate.js';
+import { isClaudeModel, parseClaudeModel, probeClaude } from './lib/claude-client.js';
+import { createClaudeMapper } from './lib/claude-translate.js';
 
 console.log('=== acptoapi test ===\n');
 
@@ -31,6 +33,27 @@ assert.strictEqual(emitted[1].choices[0].delta.content, 'hello');
 const t2 = mapper.mapEvent({ type: 'session.idle' }, () => {});
 assert.strictEqual(t2, true);
 console.log('✓ createEventMapper (delta + terminal)');
+
+assert.strictEqual(isClaudeModel('claude/sonnet'), true);
+assert.strictEqual(isClaudeModel('kilo/x'), false);
+assert.strictEqual(parseClaudeModel('claude/haiku'), 'haiku');
+assert.strictEqual(parseClaudeModel('claude'), 'sonnet');
+console.log('✓ claude model parsing');
+
+const cEmitted = [];
+const cMapper = createClaudeMapper('id-c', 'claude/haiku');
+cMapper.mapEvent({ type: 'stream_event', event: { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } } }, c => cEmitted.push(c));
+cMapper.mapEvent({ type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'hello' } } }, c => cEmitted.push(c));
+cMapper.mapEvent({ type: 'stream_event', event: { type: 'content_block_start', index: 1, content_block: { type: 'tool_use', id: 'toolu_X', name: 'Read', input: {} } } }, c => cEmitted.push(c));
+cMapper.mapEvent({ type: 'stream_event', event: { type: 'content_block_delta', index: 1, delta: { type: 'input_json_delta', partial_json: '{"file":"a"}' } } }, c => cEmitted.push(c));
+const term = cMapper.mapEvent({ type: 'result', subtype: 'success', stop_reason: 'end_turn', usage: { input_tokens: 5, output_tokens: 10 } }, c => cEmitted.push(c));
+assert(cEmitted.some(c => c.choices[0].delta.role === 'assistant'), 'role chunk emitted');
+assert(cEmitted.some(c => c.choices[0].delta.content === 'hello'), 'text_delta mapped');
+assert(cEmitted.some(c => c.choices[0].delta.tool_calls?.[0]?.id === 'toolu_X'), 'tool_use mapped');
+assert(cEmitted.some(c => c.choices[0].delta.tool_calls?.[0]?.function?.arguments === '{"file":"a"}'), 'input_json_delta mapped');
+assert.strictEqual(term.terminal, true);
+assert.strictEqual(term.stop_reason, 'stop');
+console.log('✓ createClaudeMapper (text + tool_use + result)');
 
 const kiloBackend = resolveBackend('kilo');
 const kiloUp = await probe(kiloBackend, 1500);
