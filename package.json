@@ -1,6 +1,6 @@
 {
   "name": "acptoapi",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "OpenAI-compatible HTTP facade over ACP (Kilo Code + opencode) — point any OpenAI SDK at it.",
   "type": "module",
   "bin": {
