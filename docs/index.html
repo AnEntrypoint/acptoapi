@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>acp2openai — OpenAI-compat facade over Kilo/opencode ACP</title>
+<title>acptoapi — OpenAI-compat facade over Kilo/opencode ACP</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='13' font-size='14'%3E◐%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="styles.css" />
 <script>
@@ -22,20 +22,20 @@
 <body>
 <div class="wrap">
   <header class="site-header">
-    <pre class="logo">  ▀█▀ █░█ █▀▀ █▄▄ █ █▀█ █▀▄   <span class="kilo">acp2openai</span>
+    <pre class="logo">  ▀█▀ █░█ █▀▀ █▄▄ █ █▀█ █▀▄   <span class="kilo">acptoapi</span>
    █  █▀█ ██▄ █▄█ █ █▀▄ █▄▀   <span class="green">kilo + opencode → openai sdk</span></pre>
     <div class="tagline">Point any OpenAI SDK at it. Get Kilo/opencode routing transparently. <strong>Real token-by-token SSE</strong> via ACP's <code>message.part.delta</code>.</div>
     <div class="actions">
       <a class="btn primary" href="#try">[try it live]</a>
-      <a class="btn" href="https://github.com/AnEntrypoint/acp2openai" target="_blank">[github]</a>
+      <a class="btn" href="https://github.com/AnEntrypoint/acptoapi" target="_blank">[github]</a>
       <button class="btn" onclick="toggleTheme()" title="toggle theme">◐</button>
     </div>
   </header>
 
   <section>
     <h2>install</h2>
-    <pre class="code"><code>npx acp2openai                    # defaults :4800, kilo :4780, opencode :4790
-npx acp2openai --port 8080        # custom port</code></pre>
+    <pre class="code"><code>npx acptoapi                      # defaults :4800, kilo :4780, opencode :4790
+npx acptoapi --port 8080          # custom port</code></pre>
     <p class="muted">Requires an ACP backend running: <code>kilo serve --port 4780</code> or <code>opencode serve --port 4790</code>.</p>
   </section>
 
@@ -54,7 +54,7 @@ for await (const c of stream) process.stdout.write(c.choices[0]?.delta?.content 
 
   <section id="try">
     <h2>try it live</h2>
-    <p class="muted">Running <code>acp2openai</code> locally? Paste endpoint + model, hit send.</p>
+    <p class="muted">Running <code>acptoapi</code> locally? Paste endpoint + model, hit send.</p>
     <div class="demo">
       <div class="demo-row">
         <label>endpoint</label>
@@ -122,7 +122,7 @@ for await (const c of stream) process.stdout.write(c.choices[0]?.delta?.content 
 
   <footer>
     <span>MIT · </span>
-    <a href="https://github.com/AnEntrypoint/acp2openai">AnEntrypoint/acp2openai</a>
+    <a href="https://github.com/AnEntrypoint/acptoapi">AnEntrypoint/acptoapi</a>
     <span> · sibling of </span>
     <a href="https://github.com/AnEntrypoint/thebird">thebird</a>
   </footer>

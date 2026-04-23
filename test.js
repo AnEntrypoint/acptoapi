@@ -3,7 +3,7 @@ import { createServer } from './lib/server.js';
 import { splitModel, probe, resolveBackend } from './lib/acp-client.js';
 import { openAIMessagesToACP, createEventMapper } from './lib/translate.js';
 
-console.log('=== acp2openai test ===\n');
+console.log('=== acptoapi test ===\n');
 
 assert.deepStrictEqual(splitModel('kilo/x-ai/grok-code-fast-1:optimized:free'), { prefix: 'kilo', model: 'x-ai/grok-code-fast-1:optimized:free' });
 assert.deepStrictEqual(splitModel('opencode/minimax-m2.5-free'), { prefix: 'opencode', model: 'minimax-m2.5-free' });

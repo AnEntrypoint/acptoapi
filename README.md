@@ -1,4 +1,4 @@
-# acp2openai
+# acptoapi
 
 OpenAI-compatible HTTP facade over ACP (Kilo Code + opencode). Point any OpenAI SDK at it, get Kilo/opencode routing transparently.
 
@@ -9,9 +9,9 @@ OpenAI-compatible HTTP facade over ACP (Kilo Code + opencode). Point any OpenAI 
 kilo serve --port 4780
 opencode serve --port 4790
 
-# 2. Start acp2openai
-npx acp2openai                  # defaults: :4800, kilo :4780, opencode :4790
-npx acp2openai --port 8080      # custom port
+# 2. Start acptoapi
+npx acptoapi                    # defaults: :4800, kilo :4780, opencode :4790
+npx acptoapi --port 8080        # custom port
 
 # 3. Point any OpenAI SDK at http://localhost:4800/v1
 #    Or open http://localhost:4800/ for the built-in live-streaming demo
@@ -19,8 +19,8 @@ npx acp2openai --port 8080      # custom port
 
 ## Demo
 
-- **Built-in**: `http://localhost:4800/` when acp2openai is running (no CORS, full streaming)
-- **GH Pages**: https://anentrypoint.github.io/acp2openai (browser-blocked from loopback by Chrome PNA — use built-in demo instead)
+- **Built-in**: `http://localhost:4800/` when acptoapi is running (no CORS, full streaming)
+- **GH Pages**: https://anentrypoint.github.io/acptoapi (browser-blocked from loopback by Chrome PNA — use built-in demo instead)
 
 ## Usage
 
@@ -55,7 +55,7 @@ Bare model IDs (no prefix) route to kilo.
 
 ## Why
 
-ACP (Kilo/opencode HTTP `serve` mode) has a custom protocol: `POST /session`, `POST /session/:id/message`, SSE `/event`. Using it from standard OpenAI-SDK code requires rewriting clients. acp2openai maps:
+ACP (Kilo/opencode HTTP `serve` mode) has a custom protocol: `POST /session`, `POST /session/:id/message`, SSE `/event`. Using it from standard OpenAI-SDK code requires rewriting clients. acptoapi maps:
 
 - OpenAI `messages[]` → ACP text part
 - ACP `message.part.delta` → OpenAI `delta.content` / `delta.reasoning_content` (tracked via partID → part.type lookup)
