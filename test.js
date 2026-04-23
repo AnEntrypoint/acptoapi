@@ -104,7 +104,50 @@ if (kiloUp) {
 
   server.close();
 } else {
-  console.log('⚠ skipping live tests (start: kilo serve --port 4780)');
+  console.log('⚠ skipping kilo live tests (start: kilo serve --port 4780)');
+}
+
+const claudeUp = await probeClaude();
+console.log(`claude probe: ${claudeUp ? 'UP' : 'DOWN'}`);
+if (claudeUp) {
+  const { server, port } = await createServer({ port: 0 });
+  const base = `http://127.0.0.1:${port}`;
+  const r = await fetch(base + '/v1/chat/completions', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: 'claude/haiku', messages: [{ role: 'user', content: 'reply with: ok' }], stream: true }),
+  });
+  assert.strictEqual(r.status, 200);
+  const reader = r.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '';
+  let content = '';
+  let chunks = 0;
+  let sawFinish = false;
+  const deadline = Date.now() + 90000;
+  while (Date.now() < deadline) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let idx;
+    while ((idx = buf.indexOf('\n\n')) >= 0) {
+      const line = buf.slice(0, idx); buf = buf.slice(idx + 2);
+      if (!line.startsWith('data: ')) continue;
+      const p = line.slice(6);
+      if (p === '[DONE]') { buf = ''; break; }
+      const c = JSON.parse(p);
+      chunks++;
+      if (c.choices?.[0]?.delta?.content) content += c.choices[0].delta.content;
+      if (c.choices?.[0]?.finish_reason) sawFinish = true;
+    }
+    if (sawFinish) break;
+  }
+  assert(chunks >= 2, `claude expected multiple chunks, got ${chunks}`);
+  assert(content.length > 0, `claude expected content, got: "${content}"`);
+  assert(sawFinish, 'claude expected finish_reason chunk');
+  console.log(`✓ claude /v1/chat/completions streaming (${chunks} chunks, text: "${content.slice(0, 60).trim()}")`);
+  server.close();
+} else {
+  console.log('⚠ skipping claude live tests (install claude CLI)');
 }
 
 console.log('\n=== all checks passed ===');

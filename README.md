@@ -38,14 +38,17 @@ for await (const chunk of stream) process.stdout.write(chunk.choices[0]?.delta?.
 
 ## Model selection
 
-Model IDs: `<backend>/<model>` where `<backend>` ∈ `{kilo, opencode}`.
+Model IDs: `<backend>/<model>` where `<backend>` ∈ `{kilo, opencode, claude}`.
 
 Examples:
 - `kilo/x-ai/grok-code-fast-1:optimized:free` (free, default)
 - `kilo/kilo-auto/free`
 - `opencode/minimax-m2.5-free`
+- `claude/sonnet`, `claude/haiku`, `claude/opus` (Claude Code CLI, non-interactive `-p` streaming)
 
 Bare model IDs (no prefix) route to kilo.
+
+The `claude/*` backend spawns the local `claude` CLI in non-interactive `-p` mode with all tools, MCP servers, slash commands, and project hooks disabled — pure prompt → text streaming, agentic loop neutered. Auth uses whatever Claude Code is already logged into (OAuth/keychain/`ANTHROPIC_API_KEY`) — no key needed in requests. Streams token-by-token via `--include-partial-messages` and maps Anthropic `content_block_delta` events to OpenAI SSE chunks with full fidelity (text, `tool_calls`, `tool_results`, `finish_reason`).
 
 ## Endpoints
 
@@ -70,6 +73,7 @@ CLI flags or env:
 - `--port` / `PORT` (4800)
 - `--kilo <url>` / `ACP_KILO_URL` (`http://localhost:4780`)
 - `--opencode <url>` / `ACP_OPENCODE_URL` (`http://localhost:4790`)
+- `--claude-bin <path>` / `CLAUDE_BIN` (`claude`)
 
 ## License
 
