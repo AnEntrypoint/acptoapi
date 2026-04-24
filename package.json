@@ -1,0 +1,43 @@
+{
+  "name": "acptoapi",
+  "version": "1.0.0",
+  "description": "Anthropic SDK to multi-provider streaming bridge — converts Anthropic message format and tool calls to Gemini, OpenAI-compatible APIs",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "require": "./index.js",
+      "import": "./index.js",
+      "default": "./index.js"
+    }
+  },
+  "keywords": [
+    "anthropic",
+    "gemini",
+    "google",
+    "ai",
+    "streaming",
+    "proxy",
+    "bridge",
+    "tool-use",
+    "vision",
+    "multimodal",
+    "router",
+    "openai",
+    "deepseek",
+    "multi-provider"
+  ],
+  "author": "AnEntrypoint",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AnEntrypoint/acptoapi.git"
+  },
+  "dependencies": {
+    "@google/genai": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
