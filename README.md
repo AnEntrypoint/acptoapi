@@ -143,6 +143,51 @@ npx acptoapi --list-brands    # list supported OpenAI-compat brand prefixes
 - `POST /debug/translate` — echo internal event stream for any `{from,to,provider,...}` request
 - `GET /health`
 
+## SDK
+
+Programmatic, server-free. Pass a model string, get events or buffered response back; built-in fallback chains.
+
+```js
+const { chat, stream, chain } = require('acptoapi');
+
+// One-shot. Model prefix selects backend automatically.
+const r = await chat({
+  model: 'groq/llama-3.3-70b-versatile',
+  messages: [{ role: 'user', content: 'hi' }],
+});
+console.log(r.choices[0].message.content);
+
+// Streaming. Output format selectable via `output: 'openai' | 'anthropic' | 'gemini' | 'events'`.
+for await (const ev of stream({
+  model: 'anthropic/claude-sonnet-4-6',
+  messages: [{ role: 'user', content: 'hi' }],
+  output: 'events',
+})) {
+  if (ev.type === 'text-delta') process.stdout.write(ev.textDelta);
+}
+```
+
+### Fallback chains
+
+```js
+const fast = chain([
+  'groq/llama-3.3-70b-versatile',          // try Groq first (cheap, fast)
+  'openrouter/auto',                        // fall back to OpenRouter
+  'anthropic/claude-sonnet-4-6',            // finally Anthropic direct
+]);
+
+const r = await fast.chat({ messages: [{ role: 'user', content: 'hi' }] });
+
+// Streaming fallback — first model that produces an event "wins" the stream.
+for await (const ev of fast.stream({ messages: [{ role: 'user', content: 'hi' }] })) {
+  if (ev.type === 'text-delta') process.stdout.write(ev.textDelta);
+}
+```
+
+Each link is tried in order. A link "fails" if it throws (missing env var, network error, upstream non-2xx). Once a link emits its first event, it owns the rest of the stream — no mid-stream switching. If all links fail, the last error is rethrown.
+
+`resolveModel(modelString)` returns `{ provider, model, env, url?, prefix }` — useful for inspecting routing without invoking.
+
 ## Programmatic translate API
 
 ```js

@@ -108,5 +108,7 @@ const { Anthropic } = require('./lib/sdk/anthropic');
 const { OpenAI } = require('./lib/sdk/openai');
 const { createAnthropicServer } = require('./lib/server/anthropic');
 const { createOpenAIServer } = require('./lib/server/openai');
+const { resolveModel, chat, chain, chatChain, streamChain } = require('./lib/sdk');
+const sdkStream = require('./lib/sdk').stream;
 
-module.exports = { streamGemini, createFullStream, generateGemini, streamRouter, generateRouter, createRouter, convertMessages, convertTools, cleanSchema, GeminiError, BridgeError, AuthError, RateLimitError, TimeoutError, ContextWindowError, ContentPolicyError, ProviderError, classifyError, redactKeys, cloudGenerate, streamCloud, cloudStream, ensureAuth, oauthLogin, streamACP, generateACP, translate, translateSync, buffer, stream, getFormat, FORMATS, getProvider, PROVIDERS, createStreamActor, Anthropic, OpenAI, createAnthropicServer, createOpenAIServer };
+module.exports = { streamGemini, createFullStream, generateGemini, streamRouter, generateRouter, createRouter, convertMessages, convertTools, cleanSchema, GeminiError, BridgeError, AuthError, RateLimitError, TimeoutError, ContextWindowError, ContentPolicyError, ProviderError, classifyError, redactKeys, cloudGenerate, streamCloud, cloudStream, ensureAuth, oauthLogin, streamACP, generateACP, translate, translateSync, buffer, stream, getFormat, FORMATS, getProvider, PROVIDERS, createStreamActor, Anthropic, OpenAI, createAnthropicServer, createOpenAIServer, resolveModel, chat, chain, chatChain, streamChain, sdkStream };

@@ -161,11 +161,11 @@ html, body {
     margin: 0 0 24px 0;
     max-width: 60ch;
 }
-.app-main a {
+.app-main a:not(.btn):not(.btn-primary):not(.btn-ghost) {
     color: var(--panel-accent);
     text-decoration: none;
 }
-.app-main a:hover { text-decoration: underline; text-underline-offset: 2px; }
+.app-main a:not(.btn):not(.btn-primary):not(.btn-ghost):hover { text-decoration: underline; text-underline-offset: 2px; }
 .app-main code {
     font-family: var(--ff-mono);
     font-size: 12px;

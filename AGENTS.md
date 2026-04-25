@@ -112,3 +112,19 @@ Mapping raw request bodies through `translate()` requires converting to canonica
 - **Detection**: `splitBrandModel(model)` regex `/^([a-z0-9-]+)\/(.+)$/` extracts prefix and model name; `isBrand(prefix)` validates
 - **Handling**: `lib/server.js` `handleBrandChat()` fetches upstream, streams body through unchanged
 - **API coverage**: Applies to chat, embeddings (`POST /v1/embeddings`), and token counting (`POST /v1/messages/count_tokens` — heuristic: length / 4)
+
+## Testing: No Mocks, Only Real Backends
+
+acptoapi forbids mocks anywhere in tests. This includes:
+- No mock providers in test.js
+- No monkey-patching of sdk.stream or sdk.chat
+- No stub HTTP responses
+
+All SDK and chain behavior must be witnessed via **real backends**:
+- kilo server on :4780
+- opencode server on :4790
+- Real Anthropic/Gemini/Ollama via environment keys
+
+For fallback chain tests, use a **real-but-failing target** as the first link (e.g., unreachable URL, missing env key) paired with a **real working backend** as the fallback. This tests actual failover behavior without mock layers.
+
+Rationale: User design requirement. Only real content validates the bridge's correctness.

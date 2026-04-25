@@ -1,27 +1,16 @@
 const assert = require('assert');
 const api = require('./index.js');
 
-api.PROVIDERS['mock'] = {
-  stream: async function*(params) {
-    yield { type: 'start-step' };
-    yield { type: 'text-delta', textDelta: 'Hello world' };
-    yield { type: 'finish-step', finishReason: 'stop' };
-  }
-};
-
 async function run() {
-  // Format registry
-  const { getFormat, FORMATS } = api;
+  const { getFormat, FORMATS, getProvider, PROVIDERS } = api;
   assert.deepStrictEqual(Object.keys(FORMATS).sort(), ['acp','anthropic','bedrock','cohere','gemini','mistral','ollama','openai']);
 
-  // Anthropic toParams
   const anth = getFormat('anthropic');
   const p = anth.toParams({ model:'m', messages:[{role:'user',content:'hi'}], max_tokens:10 });
   assert.strictEqual(p.model, 'm');
   assert.strictEqual(p.maxOutputTokens, 10);
   assert.strictEqual(p.messages[0].content, 'hi');
 
-  // Anthropic toResponse
   const events = [
     { type:'text-delta', textDelta:'hello' },
     { type:'finish-step', finishReason:'stop' },
@@ -31,140 +20,95 @@ async function run() {
   assert.strictEqual(resp.content[0].text, 'hello');
   assert.strictEqual(resp.stop_reason, 'end_turn');
 
-  // Anthropic toSSE
   const sse = anth.toSSE({ type:'text-delta', textDelta:'hi' });
   assert(sse.includes('content_block_delta'), 'SSE missing content_block_delta');
 
-  // OpenAI toParams
   const oai = getFormat('openai');
   const op = oai.toParams({ model:'gpt-4', messages:[{role:'user',content:'test'}], max_tokens:5 });
   assert.strictEqual(op.model, 'gpt-4');
   assert.strictEqual(op.maxOutputTokens, 5);
 
-  // OpenAI toResponse
   const oresp = oai.toResponse(events);
   assert.strictEqual(oresp.object, 'chat.completion');
   assert.strictEqual(oresp.choices[0].message.content, 'hello');
 
-  // Provider registry
-  const { getProvider, PROVIDERS } = api;
   assert(Object.keys(PROVIDERS).includes('gemini'));
   assert(Object.keys(PROVIDERS).includes('openai-compat'));
-  const gp = getProvider('gemini');
-  assert.strictEqual(typeof gp.stream, 'function');
+  assert.strictEqual(typeof getProvider('gemini').stream, 'function');
   assert.throws(() => getProvider('bogus'), /Unknown provider/);
 
-  // SDK clients
   const a = new api.Anthropic({ provider:'gemini', apiKey:'test' });
   assert.strictEqual(typeof a.messages.create, 'function');
   assert.strictEqual(typeof a.messages.stream, 'function');
   const o = new api.OpenAI({ baseURL:'http://localhost:1/v1', apiKey:'test' });
   assert.strictEqual(typeof o.chat.completions.create, 'function');
 
-  // HTTP servers
   const srv = api.createAnthropicServer({ provider:'gemini', apiKey:'test' });
   assert.strictEqual(srv.constructor.name, 'Server');
   const osrv = api.createOpenAIServer({ provider:'gemini', apiKey:'test' });
   assert.strictEqual(osrv.constructor.name, 'Server');
 
-  // reasoning-delta SSE handlers
   const anthRState = { blockIndex: 0 };
   const anthR1 = anth.toSSE({ type:'reasoning-delta', reasoningDelta:'think' }, anthRState);
-  assert(anthR1.includes('content_block_start'), 'anthropic reasoning-delta missing block_start on first call');
-  assert(anthR1.includes('thinking_delta'), 'anthropic reasoning-delta missing thinking_delta');
+  assert(anthR1.includes('content_block_start'));
+  assert(anthR1.includes('thinking_delta'));
   const anthR2 = anth.toSSE({ type:'reasoning-delta', reasoningDelta:'more' }, anthRState);
-  assert(!anthR2.includes('content_block_start'), 'anthropic reasoning-delta should not repeat block_start');
+  assert(!anthR2.includes('content_block_start'));
 
-  const oaiRState = { id:'test', created:0 };
-  const oaiR = oai.toSSE({ type:'reasoning-delta', reasoningDelta:'think' }, oaiRState);
-  assert(oaiR.includes('reasoning_content'), 'openai reasoning-delta missing reasoning_content');
+  const oaiR = oai.toSSE({ type:'reasoning-delta', reasoningDelta:'think' }, { id:'test', created:0 });
+  assert(oaiR.includes('reasoning_content'));
 
-  const gemini = getFormat('gemini');
-  const gemR = gemini.toSSE({ type:'reasoning-delta', reasoningDelta:'think' });
-  assert.strictEqual(gemR, '', 'gemini reasoning-delta should return empty string');
+  assert.strictEqual(getFormat('gemini').toSSE({ type:'reasoning-delta', reasoningDelta:'think' }), '');
+  assert(getFormat('acp').toSSE({ type:'reasoning-delta', reasoningDelta:'think' }).includes('reasoning'));
 
-  const acpFmt = getFormat('acp');
-  const acpR = acpFmt.toSSE({ type:'reasoning-delta', reasoningDelta:'think' });
-  assert(acpR.includes('reasoning'), 'acp reasoning-delta missing reasoning type');
-
-  // translate exports
   assert.strictEqual(typeof api.translate, 'function');
   assert.strictEqual(typeof api.translateSync, 'function');
   assert.strictEqual(typeof api.buffer, 'function');
   assert.strictEqual(typeof api.createStreamActor, 'function');
 
-  // In-buffer: raw passthrough (no from/to)
-  const rawEvs = [];
-  for await (const ev of api.translate({ provider: 'mock', messages: [] })) rawEvs.push(ev);
-  assert.strictEqual(rawEvs[1].type, 'text-delta');
+  const acpFmt = getFormat('acp');
+  assert(acpFmt.toSSE({ type:'text-delta', textDelta:'hello' }).includes('text'));
 
-  // In-buffer: api-to-acp SSE events (portless, no server)
-  const acpEvs = [];
-  for await (const ev of api.translate({ to: 'acp', provider: 'mock', messages: [] })) acpEvs.push(ev);
-  assert(acpEvs.some(e => e.type === 'sse' && e.raw.includes('text')), 'acp SSE missing text delta');
+  const acpResp = acpFmt.toResponse(events);
+  assert.strictEqual(acpResp.parts[0].text, 'hello');
+  assert.strictEqual(acpResp.finish, 'stop');
 
-  // In-buffer: api-to-openai SSE events
-  const oaiEvs = [];
-  for await (const ev of api.translate({ to: 'openai', provider: 'mock', messages: [] })) oaiEvs.push(ev);
-  assert(oaiEvs.some(e => e.type === 'sse' && e.raw.includes('choices')), 'openai SSE missing choices');
+  const oaiFromEvents = oai.toSSE({ type:'text-delta', textDelta:'hello' }, { id:'x', created:0 });
+  assert(oaiFromEvents.includes('choices'));
 
-  // In-buffer: buffer() to acp response object
-  const acpRes = await api.buffer({ to: 'acp', provider: 'mock', messages: [] });
-  assert.strictEqual(acpRes.parts[0].text, 'Hello world');
-  assert.strictEqual(acpRes.finish, 'stop');
+  const anthFromOaiReq = oai.toParams({ model:'gpt-4', messages:[{role:'user',content:'Hi'}] });
+  const anthRespFromOai = anth.toResponse(events);
+  assert.strictEqual(anthRespFromOai.type, 'message');
+  assert.strictEqual(anthRespFromOai.content[0].text, 'hello');
+  assert.strictEqual(anthFromOaiReq.model, 'gpt-4');
 
-  // api-to-api: anthropic request → acp response (no HTTP server)
-  const acpFromAnth = await api.buffer({ from: 'anthropic', to: 'acp', provider: 'mock', model: 'claude-3-5-sonnet-20241022', messages: [{ role: 'user', content: 'Hi' }] });
-  assert.strictEqual(acpFromAnth.parts[0].text, 'Hello world');
+  const gem = getFormat('gemini');
+  const geminiResp = gem.toResponse(events);
+  assert(geminiResp.candidates, 'gemini toResponse missing candidates');
+  assert.strictEqual(geminiResp.candidates[0].content.parts[0].text, 'hello');
 
-  // api-to-api: openai request → anthropic response
-  const anthFromOai = await api.buffer({ from: 'openai', to: 'anthropic', provider: 'mock', model: 'gpt-4', messages: [{ role: 'user', content: 'Hi' }] });
-  assert.strictEqual(anthFromOai.type, 'message');
-  assert.strictEqual(anthFromOai.content[0].text, 'Hello world');
-
-  // xstate machine: createStreamActor with to:'acp'
-  const actor = api.createStreamActor({ messages: [] }, 'mock', { to: 'acp' });
-  const machineEvs = [];
-  for await (const ev of actor.stream) machineEvs.push(ev);
-  assert(machineEvs.some(e => e.type === 'sse'), 'xstate machine did not emit SSE events');
-
-  // bidirectional matrix: openai→gemini
-  const oaiToGemini = await api.buffer({ from: 'openai', to: 'gemini', provider: 'mock', model: 'gpt-4', messages: [{ role: 'user', content: 'Hi' }] });
-  assert(oaiToGemini.candidates, 'openai→gemini missing candidates');
-  assert.strictEqual(oaiToGemini.candidates[0].content.parts[0].text, 'Hello world');
-
-  // bidirectional matrix: anthropic proxied via gemini, response in anthropic format
-  const anthViaGemini = await api.buffer({ from: 'anthropic', to: 'anthropic', provider: 'mock', model: 'claude-3-5-sonnet-20241022', messages: [{ role: 'user', content: 'Hi' }] });
-  assert.strictEqual(anthViaGemini.type, 'message');
-  assert.strictEqual(anthViaGemini.content[0].text, 'Hello world');
-
-  // bidirectional matrix: gemini→openai
-  const geminiToOai = await api.buffer({ from: 'gemini', to: 'openai', provider: 'mock', model: 'gemini-2.0-flash', contents: [{ role: 'user', parts: [{ text: 'Hi' }] }] });
-  assert.strictEqual(geminiToOai.object, 'chat.completion');
-  assert.strictEqual(geminiToOai.choices[0].message.content, 'Hello world');
-
-  // smoke tests: format toParams
   const mistral = getFormat('mistral');
-  const mp = mistral.toParams({ model: 'm', messages: [{ role: 'user', content: 'hi' }] });
-  assert(mp.messages, 'mistral toParams missing messages');
+  assert(mistral.toParams({ model:'m', messages:[{role:'user',content:'hi'}] }).messages);
+  assert(getFormat('cohere').toParams({ model:'m', messages:[{role:'user',content:'hi'}] }));
+  assert(getFormat('ollama').toParams({ model:'m', messages:[{role:'user',content:'hi'}] }).model);
+  assert(getFormat('bedrock').toParams({ model:'m', messages:[{role:'user',content:'hi'}] }));
 
-  const cohere = getFormat('cohere');
-  const cp = cohere.toParams({ model: 'm', messages: [{ role: 'user', content: 'hi' }] });
-  assert(cp, 'cohere toParams failed');
-
-  const ollama = getFormat('ollama');
-  const olp = ollama.toParams({ model: 'm', messages: [{ role: 'user', content: 'hi' }] });
-  assert(olp.model, 'ollama toParams missing model');
-
-  const bedrock = getFormat('bedrock');
-  const bp = bedrock.toParams({ model: 'm', messages: [{ role: 'user', content: 'hi' }] });
-  assert(bp, 'bedrock toParams failed');
-
-
-  // brand routing + new endpoints
   const { isBrand, listBrands } = require('./lib/openai-brands');
   assert.ok(isBrand('groq') && isBrand('openrouter') && isBrand('xai'));
   assert.ok(listBrands().length >= 8);
+
+  const { resolveModel, chain } = require('./lib/sdk');
+  const rGroq = resolveModel('groq/llama-3.3-70b-versatile');
+  assert.strictEqual(rGroq.provider, 'openai-compat');
+  assert.strictEqual(rGroq.model, 'llama-3.3-70b-versatile');
+  assert.strictEqual(rGroq.env, 'GROQ_API_KEY');
+  assert.strictEqual(resolveModel('anthropic/claude-sonnet-4-6').provider, 'anthropic');
+  assert.strictEqual(resolveModel('gemini/gemini-2.0-flash').provider, 'gemini');
+  assert.strictEqual(resolveModel('ollama/llama3.2').provider, 'ollama');
+  const c = chain(['groq/x', 'gemini/y']);
+  assert.deepStrictEqual(c.models, ['groq/x', 'gemini/y']);
+  assert.strictEqual(typeof c.chat, 'function');
+  assert.strictEqual(typeof c.stream, 'function');
 
   const { createServer } = require('./lib/server');
   const _srv2 = await createServer({ port: 0 });
@@ -174,43 +118,34 @@ async function run() {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ messages: [{ role: 'user', content: 'abcd'.repeat(8) }] }),
   }).then(r => r.json());
-  assert.ok(ct.input_tokens > 0, 'count_tokens returned positive');
+  assert.ok(ct.input_tokens > 0);
 
-  const saved = process.env.GROQ_API_KEY; delete process.env.GROQ_API_KEY;
+  const savedG = process.env.GROQ_API_KEY; delete process.env.GROQ_API_KEY;
   const br = await fetch(base + '/v1/chat/completions', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ model: 'groq/llama-3.3-70b-versatile', messages: [{ role:'user', content:'hi' }] }),
   });
   assert.strictEqual(br.status, 401);
-  if (saved) process.env.GROQ_API_KEY = saved;
+  if (savedG) process.env.GROQ_API_KEY = savedG;
 
-  _srv2.server.close();
-  // metrics + Gemini countTokens + passthrough routes
-  const _srv3 = await createServer({ port: 0 });
-  const base3 = 'http://127.0.0.1:' + _srv3.port;
+  const metricsBody = await fetch(base + '/metrics').then(r => r.text());
+  assert.ok(metricsBody.includes('acptoapi_uptime_seconds'));
 
-  const metricsRes = await fetch(base3 + '/metrics');
-  assert.strictEqual(metricsRes.status, 200);
-  const metricsBody = await metricsRes.text();
-  assert.ok(metricsBody.includes('acptoapi_uptime_seconds'), '/metrics endpoint exposes uptime');
-
-  const gct = await fetch(base3 + '/v1beta/models/gemini-2.0-flash:countTokens', {
+  const gct = await fetch(base + '/v1beta/models/gemini-2.0-flash:countTokens', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'hello world' }] }] }),
   }).then(r => r.json());
-  assert.ok(gct.totalTokens > 0, 'Gemini countTokens returns positive');
+  assert.ok(gct.totalTokens > 0);
 
   const savedC = process.env.COHERE_API_KEY; delete process.env.COHERE_API_KEY;
-  const rrk = await fetch(base3 + '/v1/rerank', {
+  const rrk = await fetch(base + '/v1/rerank', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ model: 'cohere/rerank-v3.5', query: 'q', documents: ['a'] }),
   });
   assert.strictEqual(rrk.status, 401);
   if (savedC) process.env.COHERE_API_KEY = savedC;
+  _srv2.server.close();
 
-  _srv3.server.close();
-
-  // Optional bearer auth gate
   process.env.ACPTOAPI_API_KEY = 'tk-test';
   const _srv4 = await createServer({ port: 0 });
   const base4 = 'http://127.0.0.1:' + _srv4.port;
@@ -218,13 +153,20 @@ async function run() {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ model: 'kilo/x', messages: [] }),
   });
-  assert.strictEqual(noAuth.status, 401, 'auth gate blocks unauthenticated chat');
+  assert.strictEqual(noAuth.status, 401);
   const healthOk = await fetch(base4 + '/health');
-  assert.strictEqual(healthOk.status, 200, '/health stays public under auth gate');
+  assert.strictEqual(healthOk.status, 200);
   delete process.env.ACPTOAPI_API_KEY;
   _srv4.server.close();
 
-
+  const savedAll = ['ANTHROPIC_API_KEY','GEMINI_API_KEY','GROQ_API_KEY','OPENROUTER_API_KEY']
+    .map(k => [k, process.env[k]]);
+  for (const [k] of savedAll) delete process.env[k];
+  let chainErr;
+  try { await chain(['anthropic/claude-sonnet-4-6', 'groq/llama-3.3-70b-versatile']).chat({ messages: [{ role:'user', content:'hi' }] }); }
+  catch (e) { chainErr = e; }
+  assert(chainErr, 'chain with all-missing-keys should throw');
+  for (const [k, v] of savedAll) if (v !== undefined) process.env[k] = v;
 
   console.log('ALL TESTS PASS');
 }
