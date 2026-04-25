@@ -1,0 +1,275 @@
+- id: format-mistral
+  subject: Add Mistral AI format (toParams/toSSE/toResponse)
+  status: pending
+  description: Mistral uses an OpenAI-compatible wire format but with mistral-specific quirks (function_call vs tool_calls, system as separate param). Add lib/formats/mistral.js and register in formats/index.js.
+  effort: small
+  category: feature
+  route_family: representation
+  failure_modes:
+    - Mistral tool_call format differs from OpenAI in streaming
+  route_fit: examined
+  authorization: witnessed
+  blocking: []
+  blockedBy: []
+  acceptance:
+    - lib/formats/mistral.js exports toParams/toSSE/toResponse
+    - Registered in FORMATS map
+  edge_cases:
+    - Mistral streams function_call not tool_calls in some models
+
+- id: format-cohere
+  subject: Add Cohere Command-R format (toParams/toSSE/toResponse)
+  status: pending
+  description: Cohere has distinct message format with chat_history vs message, preamble for system, and tool_results as first-class. Add lib/formats/cohere.js.
+  effort: small
+  category: feature
+  route_family: representation
+  failure_modes:
+    - Cohere preamble != system — must not conflate
+  route_fit: examined
+  authorization: witnessed
+  blocking: []
+  blockedBy: []
+  acceptance:
+    - lib/formats/cohere.js exports toParams/toSSE/toResponse
+    - Registered in FORMATS map
+  edge_cases:
+    - Cohere streaming uses event_type field not type
+
+- id: format-bedrock
+  subject: Add AWS Bedrock (Converse API) format
+  status: pending
+  description: Bedrock Converse uses inferenceConfig, contentBlockDelta streaming, toolUse/toolResult blocks. Add lib/formats/bedrock.js targeting the Converse API shape.
+  effort: medium
+  category: feature
+  route_family: representation
+  failure_modes:
+    - Bedrock streaming uses contentBlockDeltaEvent wrapper
+  route_fit: examined
+  authorization: witnessed
+  blocking: []
+  blockedBy: []
+  acceptance:
+    - lib/formats/bedrock.js exports toParams/toSSE/toResponse
+    - Registered in FORMATS map
+  edge_cases:
+    - Bedrock requires AWS SigV4 signing — provider handles auth not format
+
+- id: format-ollama
+  subject: Add Ollama local format (toParams/toSSE/toResponse)
+  status: pending
+  description: Ollama /api/chat is OpenAI-like but uses done:true not [DONE], and has model pull semantics. Add lib/formats/ollama.js covering the chat endpoint shape.
+  effort: small
+  category: feature
+  route_family: representation
+  failure_modes:
+    - Ollama streaming: ndjson lines not SSE data: prefix
+  route_fit: examined
+  authorization: witnessed
+  blocking: []
+  blockedBy: []
+  acceptance:
+    - lib/formats/ollama.js exports toParams/toSSE/toResponse
+    - Registered in FORMATS map
+  edge_cases:
+    - Ollama returns done:true in final JSON line not event stream
+
+- id: provider-anthropic-direct
+  subject: Add Anthropic direct API provider (lib/providers/anthropic.js)
+  status: pending
+  description: Call Anthropic API directly as a provider — useful when routing FROM any format TO anthropic native. Uses ANTHROPIC_API_KEY, streams via SSE with content_block_delta events, maps back to internal event model.
+  effort: medium
+  category: feature
+  route_family: execution
+  failure_modes:
+    - anthropic streaming event shape differs — content_block_delta.delta.type
+  route_fit: examined
+  authorization: witnessed
+  blocking: []
+  blockedBy: []
+  acceptance:
+    - lib/providers/anthropic.js exports streamAnthropic
+    - Registered in PROVIDERS map
+    - Handles text_delta and input_json_delta event types
+  edge_cases:
+    - Tool use requires stop_reason tool_use loop handling
+
+- id: provider-ollama
+  subject: Add Ollama provider (lib/providers/ollama.js)
+  status: pending
+  description: Stream from local Ollama instance via /api/chat NDJSON. Parse done:true terminator. No API key needed. URL from OLLAMA_URL env or config.
+  effort: small
+  category: feature
+  route_family: execution
+  failure_modes:
+    - Ollama NDJSON lines not SSE — cannot reuse SSE parser
+  route_fit: examined
+  authorization: witnessed
+  blocking: [format-ollama]
+  blockedBy: []
+  acceptance:
+    - lib/providers/ollama.js exports streamOllama
+    - Registered in PROVIDERS map
+  edge_cases:
+    - Model not pulled returns 404 — surface as retryable=false BridgeError
+
+- id: provider-bedrock
+  subject: Add AWS Bedrock Converse provider (lib/providers/bedrock.js)
+  status: pending
+  description: Stream from AWS Bedrock Converse API. SigV4 signing via AWS SDK if available, or manual HMAC. Parse contentBlockDeltaEvent streaming shape. Credentials from env AWS_ACCESS_KEY_ID/SECRET/SESSION_TOKEN or config.
+  effort: large
+  category: feature
+  route_family: execution
+  failure_modes:
+    - SigV4 signing complex — wrong region/service name causes 403
+    - Bedrock streaming uses HTTP/1.1 chunked event-stream not SSE
+  route_fit: examined
+  authorization: witnessed
+  blocking: [format-bedrock]
+  blockedBy: []
+  acceptance:
+    - lib/providers/bedrock.js exports streamBedrock
+    - Registered in PROVIDERS map
+    - Handles contentBlockDeltaEvent and messageStopEvent
+  edge_cases:
+    - ToolUseBlock requires multi-turn loop like anthropic direct
+
+- id: server-anthropic-inbound
+  subject: Expose Anthropic-native HTTP server endpoint (/v1/messages)
+  status: pending
+  description: Current server only exposes OpenAI /v1/chat/completions. Add /v1/messages that accepts Anthropic-format POST bodies, routes through translate() to any backend, and streams Anthropic SSE events back. Makes the bridge usable as an Anthropic-SDK drop-in.
+  effort: medium
+  category: feature
+  route_family: boundary
+  failure_modes:
+    - Anthropic SSE requires event: lines not just data: lines
+    - Multi-block content_block_start/stop sequencing must be correct
+  route_fit: examined
+  authorization: witnessed
+  blocking: []
+  blockedBy: []
+  acceptance:
+    - POST /v1/messages accepts Anthropic request body
+    - Streams anthropic SSE (event: message_start etc) when stream:true
+    - Returns toResponse shape when stream:false
+    - Respects x-api-key and Authorization headers for auth
+  edge_cases:
+    - Must send ping events to keep connection alive for slow models
+
+- id: server-gemini-inbound
+  subject: Expose Gemini-native HTTP endpoint (/v1beta/models/:model:streamGenerateContent)
+  status: pending
+  description: Accept Gemini-format requests (contents[], systemInstruction, tools[]) and proxy to any configured backend. Returns Gemini SSE chunks. Allows Gemini SDK to point at any provider.
+  effort: medium
+  category: feature
+  route_family: boundary
+  failure_modes:
+    - Gemini URL has model embedded in path — must parse :model param
+  route_fit: examined
+  authorization: witnessed
+  blocking: []
+  blockedBy: []
+  acceptance:
+    - GET/POST /v1beta/models/:model:streamGenerateContent routes requests
+    - Returns Gemini SSE format
+    - GET /v1beta/models lists available models
+  edge_cases:
+    - Gemini alt=sse query param selects SSE vs JSON response
+
+- id: bidirectional-matrix
+  subject: Wire all format pairs in translate() — any-to-any matrix
+  status: pending
+  description: translate() currently works via internal event model but server layers only expose a subset of pairs. Verify and test all 4x4 format pairs (anthropic/openai/gemini/acp x anthropic/openai/gemini/acp) work end-to-end via the translate() pipeline with the new formats added.
+  effort: medium
+  category: feature
+  route_family: reasoning
+  failure_modes:
+    - Some event types missing from internal model (reasoning, image output, citations)
+  route_fit: examined
+  authorization: witnessed
+  blocking: [format-mistral, format-cohere, format-ollama, provider-anthropic-direct]
+  blockedBy: []
+  acceptance:
+    - test.js covers anthropic->openai, openai->gemini, gemini->anthropic round-trips
+    - translate({from,to,provider}) works for all registered format/provider combos
+  edge_cases:
+    - Gemini image output parts have no anthropic equivalent — map to text[image description]
+
+- id: event-model-reasoning
+  subject: Add reasoning/thinking event type to internal event model
+  status: pending
+  description: Anthropic extended-thinking, DeepSeek R1 reasoning_content, and o1 reasoning_tokens all need a first-class reasoning-delta event in the internal stream so formats can map it. Add reasoning-delta event type alongside text-delta.
+  effort: small
+  category: feature
+  route_family: representation
+  failure_modes:
+    - reasoning_content is OpenAI-extension field, not standard
+  route_fit: examined
+  authorization: witnessed
+  blocking: []
+  blockedBy: []
+  acceptance:
+    - Internal event type reasoning-delta with reasoningDelta string field
+    - formats/anthropic.js maps to thinking content blocks
+    - formats/openai.js maps to delta.reasoning_content
+  edge_cases:
+    - Gemini has no reasoning equivalent — silently drop reasoning-delta in gemini toSSE
+
+- id: server-models-unified
+  subject: Unify /v1/models to enumerate all providers dynamically
+  status: pending
+  description: Currently lists only ACP+Claude backends. Extend to include all configured providers (openai-compat URLs, Ollama, Anthropic direct, Gemini). Format: prefix/model-id.
+  effort: small
+  category: feature
+  route_family: observability
+  failure_modes:
+    - Ollama /api/tags endpoint needed to enumerate local models
+  route_fit: examined
+  authorization: witnessed
+  blocking: []
+  blockedBy: [provider-ollama]
+  acceptance:
+    - /v1/models returns entries for all live-probeable providers
+    - Ollama entries from /api/tags if reachable
+  edge_cases:
+    - Provider unreachable — omit its models rather than 500
+
+- id: debug-endpoints
+  subject: Add /debug/* observability endpoints
+  status: pending
+  description: Per governance/observability requirements: add /debug/providers (live status+latency of each), /debug/config (sanitized config with secrets redacted), /debug/translate (echo internal event stream for a test prompt). Structured JSON responses.
+  effort: small
+  category: feature
+  route_family: observability
+  failure_modes:
+    - Config debug must redact API keys — use existing redactKeys()
+  route_fit: examined
+  authorization: witnessed
+  blocking: []
+  blockedBy: []
+  acceptance:
+    - GET /debug/providers returns {name, status, latencyMs}[]
+    - GET /debug/config returns redacted config
+    - POST /debug/translate echoes internal event stream as JSON array
+  edge_cases:
+    - /debug/translate should time out after 10s to avoid hanging
+
+- id: test-coverage
+  subject: Expand test.js to cover new formats and providers
+  status: pending
+  description: test.js currently tests anthropic/openai/translate. Add regression cases for each new format (toParams+toResponse+toSSE), each new provider (stream smoke test with mock server), and the new HTTP endpoints.
+  effort: medium
+  category: infra
+  route_family: observability
+  failure_modes:
+    - Test uses real network — mock local servers needed for providers
+  route_fit: examined
+  authorization: witnessed
+  blocking: [bidirectional-matrix, server-anthropic-inbound, server-gemini-inbound, debug-endpoints]
+  blockedBy: []
+  acceptance:
+    - test.js under 200 lines (split into separate test files if needed)
+    - All new formats have toParams/toResponse smoke tests
+    - New endpoints tested with real HTTP calls to local server
+  edge_cases:
+    - test.js 200-line limit — may need lib/test-helpers.js extraction
