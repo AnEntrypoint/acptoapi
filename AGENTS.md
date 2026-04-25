@@ -143,3 +143,14 @@ The `.app-main a` descendant rule has higher CSS specificity than `.btn-primary`
 ```
 
 **Root cause**: CSS variable definitions (e.g., `--panel-accent-fg = #0B0B09`) were correct; the problem was selector specificity, not variable resolution. Specificity arithmetic: `.app-main a` = 0,1,2 (class + element) vs `.btn-primary` = 0,1,0 (single class), so descendant wins.
+
+## Chain Fallback Architecture (xstate v5)
+
+Chain fallback is driven by **xstate v5 FSM** (`lib/chain-machine.js`), not a linear retry loop. Non-obvious aspects:
+
+- **State machine**: `setup({}).createMachine(...)` defines states `trying`, `done`, `exhausted` and events `SUCCESS` and `FALLBACK { reason, error }`. Actors are created via `createActor(machine)` and pumped by async drivers (`runStream`/`runChat`).
+- **Run history**: `getRunHistory()` subscribes to actor snapshots and returns the last 50 runs. This is NOT a log file or array — it's a live stream of FSM state transitions.
+- **Fallback reasons**: Canonical set is `['error', 'timeout', 'rate_limit', 'empty', 'content_policy']`. Default `fallbackOn = ['error']` means other reasons are terminal.
+- **SDK integration**: `chat`/`stream` methods in `lib/sdk.js` early-branch on `model: 'chain/<name>'` and delegate to `lib/chain.js`. Old `streamChain`/`chatChain` now wrap the chain builder.
+- **Config-driven chains**: Named chains (e.g., `chain('fallback-to-gemini')`) resolve links via `loadConfig().chains`. `--list-chains` CLI flag and `GET /debug/chains` enumerate defined and recent chains.
+- **Why xstate not floosie**: `floosie` was evaluated and rejected because it is pure ESM (CJS friction) with 5 heavy transitive deps. xstate FSM alone provides deterministic state transitions and event handling without the ESM/CJS wrap/unwrap dance. Unused `flowie` dep was removed in the same commit.
