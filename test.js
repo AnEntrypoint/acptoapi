@@ -97,7 +97,20 @@ async function run() {
   assert.ok(isBrand('groq') && isBrand('openrouter') && isBrand('xai'));
   assert.ok(listBrands().length >= 8);
 
-  const { resolveModel, chain } = require('./lib/sdk');
+  const { resolveModel, chain, fallback, listNamedChains, getRunHistory } = require('./lib/sdk');
+  const fb = fallback('groq/x').then('gemini/y').timeout(5000).build();
+  assert.deepStrictEqual(fb.models, ['groq/x', 'gemini/y']);
+  const fbObj = chain([{ model: 'groq/x', timeout: 1000 }, { model: 'gemini/y', temperature: 0.3 }]);
+  assert.strictEqual(fbObj.links[0].timeout, 1000);
+  assert.strictEqual(fbObj.links[1].temperature, 0.3);
+  assert.strictEqual(typeof listNamedChains, 'function');
+  assert(Array.isArray(getRunHistory()));
+  let chainErr2;
+  try { await chain(['unknown-brand-xyz/a']).chat({ messages: [{ role:'user', content:'hi' }] }); } catch (e) { chainErr2 = e; }
+  assert(chainErr2, 'unknown brand should fail');
+  assert.throws(() => chain([]), /non-empty/);
+  assert.throws(() => chain('does-not-exist-chain'), /No named chain/);
+
   const rGroq = resolveModel('groq/llama-3.3-70b-versatile');
   assert.strictEqual(rGroq.provider, 'openai-compat');
   assert.strictEqual(rGroq.model, 'llama-3.3-70b-versatile');

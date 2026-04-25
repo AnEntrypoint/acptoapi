@@ -124,3 +124,42 @@ export class ProviderError extends BridgeError {}
 export const GeminiError: typeof BridgeError;
 export function classifyError(status: number, message: string, provider?: string): BridgeError;
 export function redactKeys(str: string): string;
+
+export type FallbackReason = 'error' | 'timeout' | 'rate_limit' | 'empty' | 'content_policy';
+export interface ChainLink {
+  model: string;
+  timeout?: number;
+  fallbackOn?: FallbackReason[];
+  temperature?: number;
+  max_tokens?: number;
+  system?: string;
+  tools?: unknown;
+  [k: string]: unknown;
+}
+export interface ChainOptions {
+  fallbackOn?: FallbackReason[];
+  timeout?: number;
+  onFallback?: (info: { from: string; to?: string; reason: FallbackReason; error: Error }) => void;
+  [k: string]: unknown;
+}
+export interface ChainHandle {
+  models: string[];
+  links: ChainLink[];
+  chat(opts: { messages: unknown[]; [k: string]: unknown }): Promise<unknown>;
+  stream(opts: { messages: unknown[]; [k: string]: unknown }): AsyncIterable<unknown>;
+}
+export interface FallbackBuilder {
+  then(link: string | ChainLink): FallbackBuilder;
+  onFallback(fn: ChainOptions['onFallback']): FallbackBuilder;
+  fallbackOn(reasons: FallbackReason[]): FallbackBuilder;
+  timeout(ms: number): FallbackBuilder;
+  build(): ChainHandle;
+  chat(opts: { messages: unknown[] }): Promise<unknown>;
+  stream(opts: { messages: unknown[] }): AsyncIterable<unknown>;
+  readonly models: string[];
+  readonly links: ChainLink[];
+}
+export function chain(linksOrName: string | (string | ChainLink)[], defaults?: ChainOptions): ChainHandle;
+export function fallback(first: string | ChainLink, defaults?: ChainOptions): FallbackBuilder;
+export function listNamedChains(): string[];
+export function getRunHistory(): Array<{ startedAt: number; state: string; history: unknown[]; servedBy: string | null; finishedAt: number | null }>;

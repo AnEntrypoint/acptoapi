@@ -33,6 +33,15 @@ if (args.includes('--probe')) {
   const { listBrands } = require('../lib/openai-brands');
   for (const b of listBrands()) console.log(b);
   process.exit(0);
+} else if (args.includes('--list-chains')) {
+  const { listNamedChains, resolveNamedChain } = require('../lib/chain');
+  const names = listNamedChains();
+  if (!names.length) { console.log('(no chains defined; add `chains:` to ~/.thebird/config.json or set THEBIRD_CONFIG)'); process.exit(0); }
+  for (const n of names) {
+    const r = resolveNamedChain(n);
+    console.log(`${n}: ${r.links.map(l => l.model).join(' → ')}`);
+  }
+  process.exit(0);
 } else {
   createServer({ port, backends, claudeBin }).catch(e => { console.error('startup failed:', e.message); process.exit(1); });
 }

@@ -56,6 +56,71 @@ const model = genai.getGenerativeModel({ model: 'kilo/kilo-auto/free' });
 const result = await model.generateContentStream('hi');
 ```
 
+## Fallback chains
+
+Combine providers with predictable fallback. xstate-driven FSM under the hood — every transition is observable.
+
+```js
+import { chain, fallback } from 'acptoapi';
+
+// Plain array — falls back on error (default)
+const c = chain(['claude/sonnet', 'gemini/flash', 'ollama/llama3']);
+const reply = await c.chat({ messages: [{ role: 'user', content: 'hi' }] });
+
+// Per-link config — each link can override anything
+chain([
+  { model: 'claude/sonnet', timeout: 5000 },
+  { model: 'gemini/flash', temperature: 0.3 },
+  { model: 'ollama/llama3', system: 'Be brief.' },
+], {
+  fallbackOn: ['error', 'timeout', 'rate_limit', 'empty', 'content_policy'],
+  onFallback: ({ from, to, reason }) => console.log(`${from} → ${to} (${reason})`),
+});
+
+// Builder
+fallback('claude/sonnet')
+  .then('gemini/flash')
+  .then('ollama/llama3')
+  .timeout(8000)
+  .fallbackOn(['error', 'timeout', 'empty'])
+  .build();
+
+// Streaming works identically
+for await (const ev of c.stream({ messages: [...] })) { /* ... */ }
+```
+
+### Named chains
+
+Define once in `~/.thebird/config.json` (or `THEBIRD_CONFIG`):
+
+```json
+{
+  "chains": {
+    "prod": {
+      "links": [
+        { "model": "anthropic/claude-sonnet-4-6", "timeout": 5000 },
+        { "model": "gemini/gemini-2.5-pro" },
+        { "model": "ollama/llama3.2" }
+      ],
+      "defaults": { "fallbackOn": ["error", "timeout", "empty"] }
+    }
+  }
+}
+```
+
+Then use it from any client by model id `chain/prod`:
+
+```bash
+curl http://localhost:4800/v1/chat/completions -d '{"model":"chain/prod","messages":[...]}'
+```
+
+```js
+await chain('prod').chat({ messages: [...] });
+```
+
+- `acptoapi --list-chains` — list defined chains.
+- `GET /debug/chains` — defined chains + last 50 runs (state, links tried, reasons).
+
 ## Model prefixes
 
 | prefix | backend | notes |
