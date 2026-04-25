@@ -36,25 +36,6 @@
   edge_cases:
     - Cohere streaming uses event_type field not type
 
-- id: format-bedrock
-  subject: Add AWS Bedrock (Converse API) format
-  status: pending
-  description: Bedrock Converse uses inferenceConfig, contentBlockDelta streaming, toolUse/toolResult blocks. Add lib/formats/bedrock.js targeting the Converse API shape.
-  effort: medium
-  category: feature
-  route_family: representation
-  failure_modes:
-    - Bedrock streaming uses contentBlockDeltaEvent wrapper
-  route_fit: examined
-  authorization: witnessed
-  blocking: []
-  blockedBy: []
-  acceptance:
-    - lib/formats/bedrock.js exports toParams/toSSE/toResponse
-    - Registered in FORMATS map
-  edge_cases:
-    - Bedrock requires AWS SigV4 signing — provider handles auth not format
-
 - id: format-ollama
   subject: Add Ollama local format (toParams/toSSE/toResponse)
   status: pending
@@ -112,27 +93,6 @@
     - Registered in PROVIDERS map
   edge_cases:
     - Model not pulled returns 404 — surface as retryable=false BridgeError
-
-- id: provider-bedrock
-  subject: Add AWS Bedrock Converse provider (lib/providers/bedrock.js)
-  status: pending
-  description: Stream from AWS Bedrock Converse API. SigV4 signing via AWS SDK if available, or manual HMAC. Parse contentBlockDeltaEvent streaming shape. Credentials from env AWS_ACCESS_KEY_ID/SECRET/SESSION_TOKEN or config.
-  effort: large
-  category: feature
-  route_family: execution
-  failure_modes:
-    - SigV4 signing complex — wrong region/service name causes 403
-    - Bedrock streaming uses HTTP/1.1 chunked event-stream not SSE
-  route_fit: examined
-  authorization: witnessed
-  blocking: [format-bedrock]
-  blockedBy: []
-  acceptance:
-    - lib/providers/bedrock.js exports streamBedrock
-    - Registered in PROVIDERS map
-    - Handles contentBlockDeltaEvent and messageStopEvent
-  edge_cases:
-    - ToolUseBlock requires multi-turn loop like anthropic direct
 
 - id: server-anthropic-inbound
   subject: Expose Anthropic-native HTTP server endpoint (/v1/messages)
