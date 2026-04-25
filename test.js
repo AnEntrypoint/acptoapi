@@ -12,7 +12,7 @@ api.PROVIDERS['mock'] = {
 async function run() {
   // Format registry
   const { getFormat, FORMATS } = api;
-  assert.deepStrictEqual(Object.keys(FORMATS).sort(), ['acp','anthropic','cohere','gemini','mistral','ollama','openai']);
+  assert.deepStrictEqual(Object.keys(FORMATS).sort(), ['acp','anthropic','bedrock','cohere','gemini','mistral','ollama','openai']);
 
   // Anthropic toParams
   const anth = getFormat('anthropic');
@@ -127,6 +127,38 @@ async function run() {
   const machineEvs = [];
   for await (const ev of actor.stream) machineEvs.push(ev);
   assert(machineEvs.some(e => e.type === 'sse'), 'xstate machine did not emit SSE events');
+
+  // bidirectional matrix: openai→gemini
+  const oaiToGemini = await api.buffer({ from: 'openai', to: 'gemini', provider: 'mock', model: 'gpt-4', messages: [{ role: 'user', content: 'Hi' }] });
+  assert(oaiToGemini.candidates, 'openai→gemini missing candidates');
+  assert.strictEqual(oaiToGemini.candidates[0].content.parts[0].text, 'Hello world');
+
+  // bidirectional matrix: anthropic proxied via gemini, response in anthropic format
+  const anthViaGemini = await api.buffer({ from: 'anthropic', to: 'anthropic', provider: 'mock', model: 'claude-3-5-sonnet-20241022', messages: [{ role: 'user', content: 'Hi' }] });
+  assert.strictEqual(anthViaGemini.type, 'message');
+  assert.strictEqual(anthViaGemini.content[0].text, 'Hello world');
+
+  // bidirectional matrix: gemini→openai
+  const geminiToOai = await api.buffer({ from: 'gemini', to: 'openai', provider: 'mock', model: 'gemini-2.0-flash', contents: [{ role: 'user', parts: [{ text: 'Hi' }] }] });
+  assert.strictEqual(geminiToOai.object, 'chat.completion');
+  assert.strictEqual(geminiToOai.choices[0].message.content, 'Hello world');
+
+  // smoke tests: format toParams
+  const mistral = getFormat('mistral');
+  const mp = mistral.toParams({ model: 'm', messages: [{ role: 'user', content: 'hi' }] });
+  assert(mp.messages, 'mistral toParams missing messages');
+
+  const cohere = getFormat('cohere');
+  const cp = cohere.toParams({ model: 'm', messages: [{ role: 'user', content: 'hi' }] });
+  assert(cp, 'cohere toParams failed');
+
+  const ollama = getFormat('ollama');
+  const olp = ollama.toParams({ model: 'm', messages: [{ role: 'user', content: 'hi' }] });
+  assert(olp.model, 'ollama toParams missing model');
+
+  const bedrock = getFormat('bedrock');
+  const bp = bedrock.toParams({ model: 'm', messages: [{ role: 'user', content: 'hi' }] });
+  assert(bp, 'bedrock toParams failed');
 
   console.log('ALL TESTS PASS');
 }
