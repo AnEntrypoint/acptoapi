@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { createServer } from '../lib/server.js';
+'use strict';
+const { createServer } = require('../lib/server');
 
 const args = process.argv.slice(2);
 const get = (f, d) => { const i = args.indexOf(f); return i >= 0 ? args[i + 1] : d; };
