@@ -128,3 +128,18 @@ All SDK and chain behavior must be witnessed via **real backends**:
 For fallback chain tests, use a **real-but-failing target** as the first link (e.g., unreachable URL, missing env key) paired with a **real working backend** as the fallback. This tests actual failover behavior without mock layers.
 
 Rationale: User design requirement. Only real content validates the bridge's correctness.
+
+## CSS Specificity Cascade in app-shell.css
+
+The `.app-main a` descendant rule has higher CSS specificity than `.btn-primary` (descendant combinator + element selector vs single class). This causes generic anchor styles to override button colors, rendering buttons invisible when text and background are both the same accent color.
+
+**Symptom**: "Try it live" button disappears—mint text on mint background. Witness via `getComputedStyle(element).color` on docs server.
+
+**Fix**: Scope the descendant anchor rule with `:not()` pseudo-class to exclude button components:
+```css
+.app-main a:not(.btn):not(.btn-primary):not(.btn-ghost) {
+  color: var(--panel-accent);
+}
+```
+
+**Root cause**: CSS variable definitions (e.g., `--panel-accent-fg = #0B0B09`) were correct; the problem was selector specificity, not variable resolution. Specificity arithmetic: `.app-main a` = 0,1,2 (class + element) vs `.btn-primary` = 0,1,0 (single class), so descendant wins.
