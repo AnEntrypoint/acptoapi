@@ -1,0 +1,25 @@
+id: home
+title: Home
+hero:
+  heading: "acptoapi"
+  subheading: "OpenAI-compat shim over ACP"
+  body: "OpenAI-compatible HTTP facade over ACP (Kilo + opencode). drop ACP backends into anything that already speaks OpenAI."
+  badges:
+    - { label: "shim" }
+    - { label: "openai" }
+    - { label: "acp" }
+    - { label: "tooling" }
+  ctas:
+    - { label: "GitHub", href: "https://github.com/AnEntrypoint/acptoapi", primary: true }
+    - { label: "247420", href: "https://247420.xyz" }
+features:
+  heading: "Why acptoapi"
+  items:
+    - { name: "shim", desc: "flagship trait of acptoapi." }
+    - { name: "openai", desc: "core capability of acptoapi." }
+    - { name: "acp", desc: "core capability of acptoapi." }
+quickstart:
+  heading: Quick start
+  lines:
+    - { kind: "cmt", text: "# source" }
+    - { kind: "cmd", text: "git clone https://github.com/AnEntrypoint/acptoapi.git" }

@@ -1,0 +1,17 @@
+title: "acptoapi"
+tagline: "OpenAI-compat shim over ACP"
+description: "OpenAI-compatible HTTP facade over ACP (Kilo + opencode). drop ACP backends into anything that already speaks OpenAI."
+repo: "https://github.com/AnEntrypoint/acptoapi"
+url: "https://anentrypoint.github.io/acptoapi"
+year: 2026
+keywords:
+  - "shim"
+  - "openai"
+  - "acp"
+  - "247420"
+  - "anentrypoint"
+accent_from: "#ffa657"
+accent_to: "#f0883e"
+glyph: "⇄"
+code: "051"
+category: "tooling"
