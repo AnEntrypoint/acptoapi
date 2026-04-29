@@ -63,7 +63,7 @@ function Quickstart() {
       h('pre', {},
         ...home.quickstart.lines.map((l, i) => {
           const c = cls[l.kind] || '';
-          return h('span', { key: i, class: c }, l.text + '\n');
+          return h('span', { key: i, class: c }, l.text + '\\n');
         })
       )
     )
