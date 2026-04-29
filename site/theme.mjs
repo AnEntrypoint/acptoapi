@@ -1,7 +1,8 @@
 // AnEntrypoint design-system theme for flatspace.
-// Renders site chrome via anentrypoint-design SDK on the client (importmap → unpkg),
-// theme.mjs only emits the static HTML shell + bootstrap script that consumes the YAML
-// content that flatspace baked into <script type="application/json" id="__site__">.
+// Renders site chrome via anentrypoint-design SDK using REAL SDK components.
+// theme.mjs emits HTML shell + bootstrap that consumes YAML baked into <script id="__site__">.
+// The SDK provides ALL styling via installStyles(); no local <style> block — that ensures
+// every portfolio site looks uniform.
 
 const escapeHtml = (s) => String(s ?? '')
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -9,83 +10,115 @@ const escapeHtml = (s) => String(s ?? '')
 
 const escapeJson = (obj) => JSON.stringify(obj)
   .replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026')
-  .replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+  .replace(new RegExp('\\u2028','g'), '\\u2028').replace(new RegExp('\\u2029','g'), '\\u2029');
 
 const SDK_URL = 'https://unpkg.com/anentrypoint-design@latest/dist/247420.js';
 
 const clientScript = `
-import { h, applyDiff, installStyles } from 'anentrypoint-design';
+import { h, applyDiff, installStyles, components as C } from 'anentrypoint-design';
 installStyles();
+document.documentElement.classList.add('ds-247420');
 
 const data = JSON.parse(document.getElementById('__site__').textContent);
 const { site, nav, home } = data;
-const accent = \`linear-gradient(135deg, \${site.accent_from || '#58a6ff'}, \${site.accent_to || '#bc8cff'})\`;
 
 function Hero() {
-  return h('div', { class: 'hero' },
-    h('h1', { class: 'hero-h1' }, home.hero.heading),
-    home.hero.subheading ? h('p', { class: 'hero-sub' }, home.hero.subheading) : null,
-    home.hero.body ? h('p', { class: 'hero-body' }, home.hero.body) : null,
-    h('div', { class: 'badge-row' },
-      ...(home.hero.badges || []).map((b, i) => h('span', { class: 'badge', key: i }, b.label))
-    ),
-    h('div', { class: 'cta-row' },
-      ...(home.hero.ctas || []).map((c, i) => h('a', {
-        href: c.href, key: i,
-        class: 'btn btn-sm ' + (c.primary ? 'btn-primary' : 'btn-ghost'),
-        style: 'text-decoration:none'
-      }, c.label))
-    )
-  );
+  if (!home || !home.hero) return null;
+  return C.Panel({
+    style: 'margin:8px',
+    children: [
+      C.Heading({ level: 1, style: 'margin:0 0 8px 0', children: home.hero.heading || site.title }),
+      home.hero.subheading ? C.Lede({ children: home.hero.subheading }) : null,
+      home.hero.body ? h('p', { style: 'margin:8px 0 16px 0;color:var(--panel-text-2);max-width:64ch' }, home.hero.body) : null,
+      (home.hero.badges && home.hero.badges.length) ? h('div', { style: 'display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px' },
+        ...home.hero.badges.map((b, i) => C.Chip({ key: 'b'+i, children: b.label }))
+      ) : null,
+      (home.hero.ctas && home.hero.ctas.length) ? h('div', { style: 'display:flex;gap:8px;flex-wrap:wrap' },
+        ...home.hero.ctas.map((c, i) => C.Btn({ key: 'c'+i, href: c.href, primary: c.primary, children: c.label }))
+      ) : null
+    ]
+  });
 }
 
 function Features() {
-  if (!home.features || !home.features.items) return null;
-  return h('section', { class: 'section' },
-    h('h2', {}, home.features.heading || 'Features'),
-    h('div', { class: 'grid-cards' },
-      ...home.features.items.map((it, i) =>
-        h('div', { class: 'card', key: i },
-          h('h3', {}, it.name),
-          h('p', {}, it.desc || '')
-        )
-      )
-    )
-  );
+  if (!home || !home.features || !home.features.items || !home.features.items.length) return null;
+  const rows = home.features.items.map((it, i) => C.RowLink({
+    key: 'f'+i,
+    code: String(i+1).padStart(2,'0'),
+    title: it.name,
+    sub: it.desc || '',
+    meta: it.meta || '',
+    href: it.href || '#'
+  }));
+  return C.Panel({
+    title: home.features.heading || 'features',
+    style: 'margin:8px',
+    children: rows
+  });
 }
 
 function Quickstart() {
-  if (!home.quickstart || !home.quickstart.lines) return null;
-  const cls = { cmt: 'cmt', cmd: '', str: 'str', kw: 'kw', fn: 'fn' };
-  return h('section', { class: 'section' },
-    h('h2', {}, home.quickstart.heading || 'Quick start'),
-    h('div', { class: 'code-block' },
-      h('pre', {},
-        ...home.quickstart.lines.map((l, i) => {
-          const c = cls[l.kind] || '';
-          return h('span', { key: i, class: c }, l.text + '\\n');
-        })
-      )
-    )
-  );
+  if (!home || !home.quickstart || !home.quickstart.lines || !home.quickstart.lines.length) return null;
+  const lineNodes = home.quickstart.lines.map((l, i) => h('div', { key: 'q'+i, class: 'cli' },
+    h('span', { class: 'prompt' }, (l.kind === 'cmt' ? '#' : '$')),
+    h('span', { class: 'cmd' }, l.text)
+  ));
+  return C.Panel({
+    title: home.quickstart.heading || 'quick start',
+    style: 'margin:8px',
+    children: lineNodes
+  });
+}
+
+function Examples() {
+  if (!home || !home.examples || !home.examples.items || !home.examples.items.length) return null;
+  const rows = home.examples.items.map((it, i) => C.RowLink({
+    key: 'e'+i,
+    title: it.name,
+    sub: it.desc || '',
+    meta: it.cta || 'open',
+    href: it.href || '#'
+  }));
+  return C.Panel({
+    title: home.examples.heading || 'examples',
+    style: 'margin:8px',
+    children: rows
+  });
 }
 
 function Footer() {
-  return h('footer', { class: 'app-footer' },
-    h('span', {}, 'styled with '),
-    h('a', { href: 'https://github.com/AnEntrypoint/design' }, 'anentrypoint-design'),
-    h('span', {}, ' · part of '),
-    h('a', { href: 'https://247420.xyz' }, '247420.xyz'),
-    h('span', {}, ' · '),
-    h('a', { href: site.repo }, 'source')
+  return h('footer', { class: 'app-status' },
+    h('span', { class: 'item' }, 'styled with '),
+    h('a', { class: 'item', href: 'https://anentrypoint.github.io/design/' }, 'anentrypoint-design'),
+    h('span', { class: 'item' }, '·'),
+    h('a', { class: 'item', href: 'https://247420.xyz' }, '247420.xyz'),
+    h('span', { class: 'spread' }),
+    site.repo ? h('a', { class: 'item', href: site.repo }, 'source ↗') : null
   );
 }
 
-function App() {
-  return h('div', {}, Hero(), Features(), Quickstart(), Footer());
-}
+const navItems = (nav && nav.links ? nav.links : []).map(l => [String(l.label || ''), l.href]);
 
-applyDiff(document.getElementById('app'), [App()]);
+const App = C.AppShell({
+  topbar: C.Topbar({
+    brand: '247420',
+    leaf: site.title || '',
+    items: navItems
+  }),
+  crumb: C.Crumb({
+    trail: ['247420'],
+    leaf: site.title || ''
+  }),
+  main: h('div', {},
+    Hero(),
+    Features(),
+    Quickstart(),
+    Examples()
+  ),
+  status: Footer()
+});
+
+applyDiff(document.getElementById('app'), [App]);
 `;
 
 const html = ({ site, nav, home }) => `<!DOCTYPE html>
@@ -101,28 +134,6 @@ const html = ({ site, nav, home }) => `<!DOCTYPE html>
   <link rel="canonical" href="${escapeHtml(site.url || '')}" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E${encodeURIComponent(site.glyph || '◆')}%3C/text%3E%3C/svg%3E" />
   <script type="importmap">{"imports":{"anentrypoint-design":"${SDK_URL}"}}</script>
-  <style>
-    body { margin: 0; }
-    .hero { padding: 5rem 2rem 3rem; text-align: center; background: linear-gradient(135deg, var(--panel-bg, #0d1117) 0%, var(--panel-bg-2, #161b22) 100%); border-bottom: 1px solid var(--panel-border, #30363d); }
-    .hero-h1 { font-size: 4rem; font-weight: 800; margin: 0 0 1rem; letter-spacing: -2px; background: ${'linear-gradient(135deg, ' + (site.accent_from || '#58a6ff') + ', ' + (site.accent_to || '#bc8cff') + ')'}; -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-    .hero-sub { font-size: 1.25rem; color: var(--panel-muted, #8b949e); max-width: 640px; margin: 0 auto 0.75rem; line-height: 1.6; }
-    .hero-body { font-size: 1rem; color: var(--panel-muted, #8b949e); max-width: 640px; margin: 0 auto 2rem; line-height: 1.6; }
-    .badge-row { display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap; margin-bottom: 2rem; }
-    .badge { background: var(--panel-bg-2, #21262d); border: 1px solid var(--panel-border, #30363d); border-radius: 9999px; padding: 0.25rem 0.75rem; font-size: 0.75rem; color: var(--panel-muted, #8b949e); }
-    .cta-row { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
-    .section { max-width: 1100px; margin: 0 auto; padding: 3rem 2rem; }
-    .section h2 { font-size: 1.75rem; font-weight: 700; color: var(--panel-text, #e6edf3); margin-bottom: 1.5rem; border-bottom: 1px solid var(--panel-border, #21262d); padding-bottom: 0.75rem; }
-    .grid-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; }
-    .card { background: var(--panel-bg-2, #161b22); border: 1px solid var(--panel-border, #30363d); border-radius: 12px; padding: 1.25rem; }
-    .card h3 { margin: 0 0 0.5rem; font-size: 1rem; color: ${site.accent_to || '#bc8cff'}; font-family: var(--ff-mono, ui-monospace, monospace); }
-    .card p { margin: 0; color: var(--panel-muted, #8b949e); font-size: 0.85rem; line-height: 1.5; }
-    .code-block { background: var(--panel-bg-2, #161b22); border: 1px solid var(--panel-border, #30363d); border-radius: 12px; padding: 1.5rem; overflow-x: auto; }
-    .code-block pre { margin: 0; font-family: var(--ff-mono, ui-monospace, monospace); font-size: 0.85rem; color: var(--panel-text, #e6edf3); line-height: 1.6; }
-    .cmt { color: var(--panel-muted, #8b949e); }
-    .str { color: #a5d6ff; } .kw { color: #ff7b72; } .fn { color: #d2a8ff; }
-    .app-footer { border-top: 1px solid var(--panel-border, #21262d); padding: 2rem; text-align: center; color: var(--panel-muted, #8b949e); font-size: 0.85rem; }
-    .app-footer a { color: #58a6ff; text-decoration: none; }
-  </style>
 </head>
 <body>
   <div id="app"></div>
