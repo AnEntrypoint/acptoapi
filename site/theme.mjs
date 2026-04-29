@@ -134,6 +134,7 @@ const html = ({ site, nav, home }) => `<!DOCTYPE html>
   <link rel="canonical" href="${escapeHtml(site.url || '')}" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E${encodeURIComponent(site.glyph || '◆')}%3C/text%3E%3C/svg%3E" />
   <script type="importmap">{"imports":{"anentrypoint-design":"${SDK_URL}"}}</script>
+  <style>html,body{margin:0;padding:0}body{background:var(--app-bg,#FBF6EB);color:var(--ink,#1F1B16);font-family:var(--ff-ui,'Nunito',system-ui,sans-serif)}</style>
 </head>
 <body>
   <div id="app"></div>
