@@ -1,7 +1,7 @@
 id: home
 title: Home
 hero:
-  heading: "acptoapi"
+  heading: "agentapi"
   subheading: "OpenAI-compat shim over ACP"
   body: "OpenAI-compatible HTTP facade over ACP (Kilo + opencode). drop ACP backends into anything that already speaks OpenAI."
   badges:
@@ -10,16 +10,16 @@ hero:
     - { label: "acp" }
     - { label: "tooling" }
   ctas:
-    - { label: "GitHub", href: "https://github.com/AnEntrypoint/acptoapi", primary: true }
+    - { label: "GitHub", href: "https://github.com/AnEntrypoint/agentapi", primary: true }
     - { label: "247420", href: "https://247420.xyz" }
 features:
-  heading: "Why acptoapi"
+  heading: "Why agentapi"
   items:
-    - { name: "shim", desc: "flagship trait of acptoapi." }
-    - { name: "openai", desc: "core capability of acptoapi." }
-    - { name: "acp", desc: "core capability of acptoapi." }
+    - { name: "shim", desc: "flagship trait of agentapi." }
+    - { name: "openai", desc: "core capability of agentapi." }
+    - { name: "acp", desc: "core capability of agentapi." }
 quickstart:
   heading: Quick start
   lines:
     - { kind: "cmt", text: "# source" }
-    - { kind: "cmd", text: "git clone https://github.com/AnEntrypoint/acptoapi.git" }
+    - { kind: "cmd", text: "git clone https://github.com/AnEntrypoint/agentapi.git" }

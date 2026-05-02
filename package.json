@@ -1,5 +1,5 @@
 {
-  "name": "acptoapi",
+  "name": "agentapi",
   "version": "1.0.30",
   "description": "Anthropic SDK to multi-provider streaming bridge — converts Anthropic message format and tool calls to Gemini, OpenAI-compatible APIs",
   "main": "index.js",
@@ -32,7 +32,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/AnEntrypoint/acptoapi.git"
+    "url": "https://github.com/AnEntrypoint/agentapi.git"
   },
   "dependencies": {
     "@google/genai": "^1.0.0",

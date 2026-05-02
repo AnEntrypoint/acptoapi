@@ -1,4 +1,4 @@
-# AGENTS.md — acp2openai
+# AGENTS.md — agentapi
 
 Non-obvious technical caveats for agents working on this repo.
 
@@ -115,7 +115,7 @@ Mapping raw request bodies through `translate()` requires converting to canonica
 
 ## Testing: No Mocks, Only Real Backends
 
-acptoapi forbids mocks anywhere in tests. This includes:
+agentapi forbids mocks anywhere in tests. This includes:
 - No mock providers in test.js
 - No monkey-patching of sdk.stream or sdk.chat
 - No stub HTTP responses

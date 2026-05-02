@@ -142,7 +142,7 @@ async function run() {
   if (savedG) process.env.GROQ_API_KEY = savedG;
 
   const metricsBody = await fetch(base + '/metrics').then(r => r.text());
-  assert.ok(metricsBody.includes('acptoapi_uptime_seconds'));
+  assert.ok(metricsBody.includes('agentapi_uptime_seconds'));
 
   const gct = await fetch(base + '/v1beta/models/gemini-2.0-flash:countTokens', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -159,7 +159,7 @@ async function run() {
   if (savedC) process.env.COHERE_API_KEY = savedC;
   _srv2.server.close();
 
-  process.env.ACPTOAPI_API_KEY = 'tk-test';
+  process.env.AGENTAPI_API_KEY = 'tk-test';
   const _srv4 = await createServer({ port: 0 });
   const base4 = 'http://127.0.0.1:' + _srv4.port;
   const noAuth = await fetch(base4 + '/v1/chat/completions', {
@@ -169,7 +169,7 @@ async function run() {
   assert.strictEqual(noAuth.status, 401);
   const healthOk = await fetch(base4 + '/health');
   assert.strictEqual(healthOk.status, 200);
-  delete process.env.ACPTOAPI_API_KEY;
+  delete process.env.AGENTAPI_API_KEY;
   _srv4.server.close();
 
   const savedAll = ['ANTHROPIC_API_KEY','GEMINI_API_KEY','GROQ_API_KEY','OPENROUTER_API_KEY']

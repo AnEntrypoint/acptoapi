@@ -1,8 +1,8 @@
-title: "acptoapi"
+title: "agentapi"
 tagline: "OpenAI-compat shim over ACP"
 description: "OpenAI-compatible HTTP facade over ACP (Kilo + opencode). drop ACP backends into anything that already speaks OpenAI."
-repo: "https://github.com/AnEntrypoint/acptoapi"
-url: "https://anentrypoint.github.io/acptoapi"
+repo: "https://github.com/AnEntrypoint/agentapi"
+url: "https://anentrypoint.github.io/agentapi"
 year: 2026
 keywords:
   - "shim"

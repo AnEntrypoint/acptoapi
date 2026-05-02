@@ -85,7 +85,7 @@ async function streamChat() {
     stats.textContent = `done · ${chunks} chunks · first ${firstChunkMs}ms · ${Math.round(performance.now() - t0)}ms total`;
   } catch (e) {
     stats.textContent = 'error: ' + e.message;
-    state.content = 'ERROR: ' + e.message + '\n\nIs acptoapi running on ' + endpoint + ' ?\n\nStart it with:\n  npx acptoapi\n\nAnd ensure kilo is serving:\n  kilo serve --port 4780';
+    state.content = 'ERROR: ' + e.message + '\n\nIs agentapi running on ' + endpoint + ' ?\n\nStart it with:\n  npx agentapi\n\nAnd ensure kilo is serving:\n  kilo serve --port 4780';
     render();
   } finally {
     btn.disabled = false;
