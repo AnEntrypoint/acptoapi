@@ -1,6 +1,6 @@
 {
   "name": "agentapi",
-  "version": "1.0.30",
+  "version": "1.0.31",
   "description": "Anthropic SDK to multi-provider streaming bridge — converts Anthropic message format and tool calls to Gemini, OpenAI-compatible APIs",
   "main": "index.js",
   "types": "index.d.ts",
