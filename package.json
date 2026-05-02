@@ -1,6 +1,6 @@
 {
   "name": "@lanmower/agentapi",
-  "version": "1.0.34",
+  "version": "1.0.35",
   "description": "Anthropic SDK to multi-provider streaming bridge — converts Anthropic message format and tool calls to Gemini, OpenAI-compatible APIs",
   "main": "index.js",
   "types": "index.d.ts",
