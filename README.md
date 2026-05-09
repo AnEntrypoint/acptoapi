@@ -132,6 +132,7 @@ await chain('prod').chat({ messages: [...] });
 | `gemini/` | Google Gemini API | requires `GEMINI_API_KEY` |
 | `ollama/` | Local Ollama | requires Ollama running at `OLLAMA_URL` |
 | `bedrock/` | AWS Bedrock Converse | requires AWS credentials |
+| `nvidia/` | NVIDIA NIM | `NVIDIA_KEY` |
 | `openai/` | OpenAI direct | `OPENAI_API_KEY` |
 | `groq/` | Groq | `GROQ_API_KEY` |
 | `openrouter/` | OpenRouter | `OPENROUTER_API_KEY` |
@@ -187,6 +188,44 @@ Bare model IDs (no prefix) route to kilo.
 
 - `GET /metrics` — Prometheus exposition (request counters, latency summary, uptime)
 - Optional bearer auth: set `AGENTAPI_API_KEY=<secret>`; clients must send `Authorization: Bearer <secret>` (or `x-api-key`). `/health`, `/metrics`, `/debug/*`, and demo assets stay public.
+
+### NVIDIA NIM deployment
+
+Run `acptoapi` as an Anthropic SDK bridge backed by NVIDIA NIM — zero install, just `npx` or `bun x`:
+
+```bash
+# Set your NVIDIA key
+export NVIDIA_KEY=nvapi-...
+
+# Start the bridge
+npx acptoapi
+
+# Or with bun
+bun x acptoapi
+```
+
+Point the Anthropic SDK at it using the `nvidia/` model prefix:
+
+```js
+import Anthropic from '@anthropic-ai/sdk';
+const client = new Anthropic({ baseURL: 'http://localhost:4800', apiKey: 'unused' });
+
+const msg = await client.messages.create({
+  model: 'nvidia/meta/llama-3.1-8b-instruct',
+  max_tokens: 1024,
+  messages: [{ role: 'user', content: 'hi' }],
+});
+```
+
+**Windows deployment** (`start.bat`):
+```bat
+@echo off
+cd /d "%~dp0"
+for /f "usebackq delims=" %%a in (.env) do set %%a
+npx --yes acptoapi
+```
+
+Keep `.env` and `start.bat` in the same directory — `.env` needs only `NVIDIA_KEY`.
 
 ### CLI flags
 
@@ -297,6 +336,7 @@ CLI flags or env:
 | `--claude-bin <path>` | `CLAUDE_BIN` | `claude` |
 | — | `ANTHROPIC_API_KEY` | — |
 | — | `GEMINI_API_KEY` | — |
+| — | `NVIDIA_KEY` | — |
 | — | `OLLAMA_URL` | `http://localhost:11434` |
 | — | `AWS_ACCESS_KEY_ID` | — |
 | — | `AWS_SECRET_ACCESS_KEY` | — |
