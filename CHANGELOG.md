@@ -23,3 +23,17 @@
 
 ### Added
 - GET /debug/anthropic — uptime, routing table, env-key presence, and last 20 /v1/messages request log
+
+### Claude Code CLI compatibility (witnessed against local server on :4900)
+
+Probe: `claude -p "say hi in 3 words" --output-format stream-json --verbose --include-partial-messages` with `ANTHROPIC_BASE_URL=http://127.0.0.1:4900`, `ANTHROPIC_AUTH_TOKEN=theultimateflex`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`.
+
+What worked:
+- Auth: server accepts both `Authorization: Bearer <token>` and `x-api-key: <token>` against `AGENTAPI_API_KEY`. Claude Code sends Bearer; accepted.
+- Full streaming turn observed end-to-end: `message_start` → `content_block_start` → `content_block_delta(text_delta)` → `content_block_stop` → `message_delta(stop_reason: end_turn)` → `message_stop` → `result(success)`.
+- Real upstream text returned to Claude Code ("Hello there friend.") via auto-chain → openrouter/auto.
+- `modelUsage` block in result correctly tagged `claude-sonnet-4-6`.
+
+What broke (now fixed):
+- Bare `claude-*` model names (no slash) sent by Claude Code CLI — e.g. `claude-sonnet-4-6` — were not recognised by `inferredProvider()`, which only matched `claude/` prefix. They fell through to the `gemini`/`nvidia` default branch and produced no useful routing. Fixed in `lib/server.js handleAnthropicMessages`: bare `claude-*` without slash now routes through auto-chain when `ANTHROPIC_API_KEY` is absent, or to `anthropic/<model>` when present. Original model preserved on `body.originalModel` and surfaced in `/debug/anthropic` log.
+- `/debug/anthropic` log entry's `originalModel` field previously only populated when `x-provider` header was set. Now always populated when the bare-claude rewrite path triggers, so the log clearly shows incoming `claude-sonnet-4-6` → resolved upstream.
