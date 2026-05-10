@@ -41,5 +41,18 @@ rs-learn.db
 # tracked: .gm/rs-learn.db, .gm/code-search/, AGENTS.md, .gm/prd.yml
 # <<< gm managed
 
+.env
+*.log
+*.err
+probe*.out
+probe*.err
+server-*.log
+server-*.err
+out.log
+err.log
+test-direct.json
+testreq.json
+
+
 
 
