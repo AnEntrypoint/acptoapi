@@ -98,6 +98,58 @@ Maps to:
 
 When translating between formats, preserve reasoning blocks if both source and target support them. Check format docs for reasoning field names (may vary: `thinking`, `reasoning_content`, `content[type=thinking]`, etc.).
 
+## Auto-Fallback Chain (lib/auto-chain.js)
+
+`buildAutoChain(targetModel?)` auto-detects available providers from env and returns a priority-ordered array of chain links.
+
+### Provider Detection
+
+- Brand providers (groq, nvidia, cerebras, etc.): checked via `isBrand()` + env key presence in `lib/openai-brands.js`
+- Built-in providers: `anthropic` → `ANTHROPIC_API_KEY`, `gemini` → `GEMINI_API_KEY`, `ollama` → always available (no key required)
+
+### Priority Order
+
+Default: `anthropic, openrouter, groq, nvidia, cerebras, sambanova, mistral, codestral, qwen, zai, cloudflare, gemini, ollama`
+
+Override with `PROVIDER_ORDER=groq,nvidia,anthropic` (comma-separated). Only providers with available env keys appear in the chain.
+
+### Usage
+
+```js
+const { buildAutoChain } = require('./lib/auto-chain');
+const links = buildAutoChain();
+// returns: [{ model: 'groq/llama-3.3-70b-versatile', fallbackOn: ['error','rate_limit','timeout','empty'] }, ...]
+```
+
+Pass `model: 'auto'` to the Anthropic-compat endpoint to trigger auto-chain routing. First available provider in priority order is selected.
+
+### Observability
+
+`GET /debug/auto-chain` returns `{ links: [...], order: [...] }` showing the current resolved chain.
+
+### Providers Supported (lib/openai-brands.js)
+
+| Prefix | Env Key |
+|--------|---------|
+| groq | GROQ_API_KEY |
+| openrouter | OPENROUTER_API_KEY |
+| nvidia | NVIDIA_API_KEY |
+| cerebras | CEREBRAS_API_KEY |
+| sambanova | SAMBANOVA_API_KEY |
+| mistral | MISTRAL_API_KEY |
+| codestral | CODESTRAL_API_KEY |
+| qwen | QWEN_API_KEY |
+| zai | ZAI_API_KEY |
+| cloudflare | CLOUDFLARE_API_KEY + CLOUDFLARE_ACCOUNT_ID |
+| opencode-zen | OPENCODE_ZEN_API_KEY |
+| together | TOGETHER_API_KEY |
+| deepseek | DEEPSEEK_API_KEY |
+| xai | XAI_API_KEY |
+| perplexity | PERPLEXITY_API_KEY |
+| fireworks | FIREWORKS_API_KEY |
+
+Cloudflare URL is dynamic: `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/v1/chat/completions` — `CLOUDFLARE_ACCOUNT_ID` is required alongside `CLOUDFLARE_API_KEY`.
+
 ## Brand Routing (HTTP Passthrough Pattern)
 
 OpenAI-compatible brand prefixes (groq, openrouter, together, deepseek, xai, cerebras, perplexity, mistral, fireworks, openai) route via **HTTP passthrough**, not through the `translate()` pipeline.
@@ -112,6 +164,7 @@ Mapping raw request bodies through `translate()` requires converting to canonica
 - **Detection**: `splitBrandModel(model)` regex `/^([a-z0-9-]+)\/(.+)$/` extracts prefix and model name; `isBrand(prefix)` validates
 - **Handling**: `lib/server.js` `handleBrandChat()` fetches upstream, streams body through unchanged
 - **API coverage**: Applies to chat, embeddings (`POST /v1/embeddings`), and token counting (`POST /v1/messages/count_tokens` — heuristic: length / 4)
+- **Function URLs**: `getBrand(prefix)` resolves function-valued URLs at call time (e.g., Cloudflare dynamic account URL)
 
 ## Testing: No Mocks, Only Real Backends
 
