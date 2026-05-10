@@ -181,6 +181,18 @@ async function run() {
   assert(chainErr, 'chain with all-missing-keys should throw');
   for (const [k, v] of savedAll) if (v !== undefined) process.env[k] = v;
 
+
+  // new brands + auto-chain
+  assert.ok(isBrand('sambanova') && isBrand('nvidia') && isBrand('zai') && isBrand('qwen') && isBrand('codestral') && isBrand('opencode-zen'));
+  const { buildAutoChain, DEFAULT_ORDER: DO } = require('./lib/auto-chain');
+  assert.ok(Array.isArray(DO) && DO.includes('groq'));
+  const savedG2 = process.env.GROQ_API_KEY; process.env.GROQ_API_KEY = 'test-key';
+  const acLinks = buildAutoChain(); assert.ok(acLinks.some(l => l.model.startsWith('groq/')));
+  process.env.GROQ_API_KEY = savedG2 || '';
+  const _srv3 = await createServer({ port: 0 });
+  const acr = await fetch('http://127.0.0.1:' + _srv3.port + '/debug/auto-chain').then(r => r.json());
+  assert.ok(Array.isArray(acr.links) && Array.isArray(acr.order)); _srv3.server.close();
+
   console.log('ALL TESTS PASS');
 }
 
