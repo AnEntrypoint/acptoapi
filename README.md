@@ -132,7 +132,7 @@ await chain('prod').chat({ messages: [...] });
 | `gemini/` | Google Gemini API | requires `GEMINI_API_KEY` |
 | `ollama/` | Local Ollama | requires Ollama running at `OLLAMA_URL` |
 | `bedrock/` | AWS Bedrock Converse | requires AWS credentials |
-| `nvidia/` | NVIDIA NIM | `NVIDIA_KEY` |
+| `nvidia/` | NVIDIA NIM | `NVIDIA_API_KEY` |
 | `openai/` | OpenAI direct | `OPENAI_API_KEY` |
 | `groq/` | Groq | `GROQ_API_KEY` |
 | `openrouter/` | OpenRouter | `OPENROUTER_API_KEY` |
@@ -142,11 +142,35 @@ await chain('prod').chat({ messages: [...] });
 | `cerebras/` | Cerebras | `CEREBRAS_API_KEY` |
 | `perplexity/` | Perplexity | `PERPLEXITY_API_KEY` |
 | `mistral/` | Mistral La Plateforme | `MISTRAL_API_KEY` |
+| `codestral/` | Mistral Codestral | `CODESTRAL_API_KEY` |
 | `fireworks/` | Fireworks AI | `FIREWORKS_API_KEY` |
+| `sambanova/` | SambaNova Cloud | `SAMBANOVA_API_KEY` |
+| `qwen/` | Alibaba Qwen | `QWEN_API_KEY` |
+| `zai/` | Z.ai | `ZAI_API_KEY` |
+| `cloudflare/` | Cloudflare Workers AI | `CLOUDFLARE_API_KEY` + `CLOUDFLARE_ACCOUNT_ID` |
+| `opencode-zen/` | OpenCode Zen | `OPENCODE_ZEN_API_KEY` |
 
 Brand prefixes are pure passthrough to that vendor's OpenAI-compatible endpoint — full streaming, tool-calling, whatever the brand supports flows through unchanged.
 
 Bare model IDs (no prefix) route to kilo.
+
+### Auto-fallback chain
+
+Set `model: 'auto'` to let agentapi pick the best available provider automatically:
+
+```bash
+curl http://localhost:4800/v1/messages -d '{"model":"auto","messages":[{"role":"user","content":"hi"}],"max_tokens":100}'
+```
+
+Provider priority is auto-detected from env keys. Override with `PROVIDER_ORDER`:
+
+```bash
+PROVIDER_ORDER=groq,nvidia,anthropic npx agentapi
+```
+
+Default order: `anthropic, openrouter, groq, nvidia, cerebras, sambanova, mistral, codestral, qwen, zai, cloudflare, gemini, ollama`
+
+`GET /debug/auto-chain` returns the resolved chain for the current environment.
 
 ### Example model IDs
 
@@ -195,7 +219,7 @@ Run `acptoapi` as an Anthropic SDK bridge backed by NVIDIA NIM — zero install,
 
 ```bash
 # Set your NVIDIA key
-export NVIDIA_KEY=nvapi-...
+export NVIDIA_API_KEY=nvapi-...
 
 # Start the bridge
 npx acptoapi
