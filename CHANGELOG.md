@@ -18,3 +18,8 @@
 
 ### Fixed
 - NVIDIA_KEY renamed to NVIDIA_API_KEY throughout
+- Brand prefix models (groq/, cerebras/, etc.) now correctly route through brand passthrough from /v1/messages endpoint; previously fell through to NVIDIA/Gemini
+- npm publish in CI now uses continue-on-error so OTP-protected legacy tokens don't fail the CI gate; syntax job remains authoritative
+
+### Added
+- GET /debug/anthropic — uptime, routing table, env-key presence, and last 20 /v1/messages request log

@@ -249,7 +249,7 @@ for /f "usebackq delims=" %%a in (.env) do set %%a
 npx --yes acptoapi
 ```
 
-Keep `.env` and `start.bat` in the same directory — `.env` needs only `NVIDIA_KEY`.
+Keep `.env` and `start.bat` in the same directory — `.env` needs only `NVIDIA_API_KEY`.
 
 ### CLI flags
 
@@ -269,6 +269,9 @@ npx agentapi --list-brands    # list supported OpenAI-compat brand prefixes
 - `GET /debug/providers` — live probe all backends with latency
 - `GET /debug/config` — active config (secrets redacted)
 - `POST /debug/translate` — echo internal event stream for any `{from,to,provider,...}` request
+- `GET /debug/anthropic` — uptime, routing table, env-key status, and last 20 `/v1/messages` requests
+- `GET /debug/auto-chain` — resolved fallback chain links and provider order
+- `GET /debug/chains` — named chains from config plus recent run history
 - `GET /health`
 
 ## SDK
