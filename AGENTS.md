@@ -207,3 +207,23 @@ Chain fallback is driven by **xstate v5 FSM** (`lib/chain-machine.js`), not a li
 - **SDK integration**: `chat`/`stream` methods in `lib/sdk.js` early-branch on `model: 'chain/<name>'` and delegate to `lib/chain.js`. Old `streamChain`/`chatChain` now wrap the chain builder.
 - **Config-driven chains**: Named chains (e.g., `chain('fallback-to-gemini')`) resolve links via `loadConfig().chains`. `--list-chains` CLI flag and `GET /debug/chains` enumerate defined and recent chains.
 - **Why xstate not floosie**: `floosie` was evaluated and rejected because it is pure ESM (CJS friction) with 5 heavy transitive deps. xstate FSM alone provides deterministic state transitions and event handling without the ESM/CJS wrap/unwrap dance. Unused `flowie` dep was removed in the same commit.
+
+## Test Launcher (nim directory)
+
+Persistent test server at c:\dev\nim (copy of .env, start.bat launcher script):
+
+- **start.bat**: Loads .env (provider keys), sets AGENTAPI_API_KEY=theultimateflex and PORT=4900, runs `node c:\dev\acptoapi\bin\agentapi.js`.
+- **Probe pattern** (run from c:\dev\test): Set ANTHROPIC_BASE_URL=http://127.0.0.1:4900, ANTHROPIC_AUTH_TOKEN=theultimateflex, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1, then invoke `claude -p "<prompt>" --output-format stream-json --verbose --include-partial-messages --debug`.
+- **Auto-chain routing**: Bare `claude-*` model names from CLI route through auto-chain (first link defaults to groq/llama-3.3-70b-versatile with current .env keys).
+- **Health check**: `curl http://127.0.0.1:4900/health` returns 200 with backends list. Confirms server is up.
+- **Daemon launch**: Do NOT use `nohup cmd //c start.bat &` from bash — leaves a dead shell. Instead use Node `spawn({ detached: true, stdio: ['ignore', fileHandle, fileHandle] })` for a real persistent daemon.
+
+## model-resolver.js + dynamic defaults (2026-05-12)
+
+`lib/model-resolver.js` resolves a `<provider>/<model>` string to `{provider, model, env, url}`. `PROVIDER_KEYS` (env var per provider) and `PROVIDER_DEFAULTS` (default model per provider) are exported from `lib/provider-maps.js` and re-exported from `acptoapi` root. Freddie consumes both via `createRequire(import.meta.url)` in `src/agent/llm_resolver.js` — single source of truth for the 17 supported providers (anthropic, openai, groq, google, mistral, cerebras, nvidia, openrouter, sambanova, codestral, zai, qwen, cloudflare, opencode, kilo, claude-cli, ollama).
+
+Default model selection: if caller passes only `provider`, resolver fills in `PROVIDER_DEFAULTS[provider]`. Updates to the defaults table land in this repo, propagate to freddie on next `npm install` (or `node scripts/sync-upstream.mjs`).
+
+## kilo protocol notes (2026-05-12)
+
+Kilo + opencode ACP daemons speak the same protocol (SSE event stream + REST session/message). Required ordering: open `GET /event` SSE BEFORE `POST /session/<id>/message` or events drop. Terminate on `session.idle`. Surfaces only assembled content (no tool_calls back to caller). Implementations in consumers (e.g., freddie `src/agent/llm_resolver.js::acpChat`) must mirror this ordering.
