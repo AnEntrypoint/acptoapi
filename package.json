@@ -13,7 +13,12 @@
       "require": "./index.js",
       "import": "./index.js",
       "default": "./index.js"
-    }
+    },
+    "./lib/claude-client": "./lib/claude-client.js",
+    "./lib/openai-brands": "./lib/openai-brands.js",
+    "./lib/model-prober": "./lib/model-prober.js",
+    "./lib/acp-client": "./lib/acp-client.js",
+    "./lib/sampler": "./lib/sampler.js"
   },
   "keywords": [
     "anthropic",
