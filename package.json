@@ -18,7 +18,10 @@
     "./lib/openai-brands": "./lib/openai-brands.js",
     "./lib/model-prober": "./lib/model-prober.js",
     "./lib/acp-client": "./lib/acp-client.js",
-    "./lib/sampler": "./lib/sampler.js"
+    "./lib/sampler": "./lib/sampler.js",
+    "./lib/queues": "./lib/queues.js",
+    "./lib/matrix": "./lib/matrix.js",
+    "./lib/chain": "./lib/chain.js"
   },
   "keywords": [
     "anthropic",

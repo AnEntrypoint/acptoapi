@@ -2,6 +2,57 @@
 
 Non-obvious technical caveats for agents working on this repo.
 
+## Public API — unified chain SDK (since 1.0.57)
+
+acptoapi is the canonical home for LLM model resolution, chain fallback, sampler backoff, and matrix-aware scoring. **Downstream consumers (freddie, thebird, etc.) must NOT reimplement these locally.** The SDK delegates everything; consumers pass model strings and config.
+
+### Model string syntax
+
+`api.chat({ model, messages, ... })` accepts three forms:
+
+1. **Single model id** — `'groq/llama-3.3-70b-versatile'`, `'anthropic/claude-haiku-4-5'`, `'ollama/llama3.2'`. Resolved via `resolveModel(model)`.
+2. **Comma-separated chain** — `'groq/llama-3.3-70b-versatile, mistral/mistral-tiny, claude-cli/haiku'`. Whitespace tolerated. Dispatched as `chain([...])`.
+3. **`queue/<name>`** — named queue from `~/.acptoapi/queues.json` (default) or injected sources. Resolved via `resolveQueue({name, queuesMap?, configPath?, extraQueueSources?})`.
+
+Also: `'chain/<name>'` — legacy alias of `queue/`, reads `~/.thebird/config.json` chains. Both supported.
+
+### Queue sources (in resolution order)
+
+1. `process.env.ACPTOAPI_QUEUES` or `~/.acptoapi/queues.json` — primary store. JSON `{queues: {<name>: [<model>, ...]}}` or flat `{<name>: [...]}`.
+2. `extraQueueSources: [...]` opt — additional file paths. Per-call override.
+3. `~/.thebird/config.json` `chains` key — backward compat.
+4. `queuesMap` opt — in-memory `{<name>: [...]}` merged last (highest priority).
+
+Server-level injection: `createServer({queuesProvider: () => ({...})})` — provider function called per-request, merged into `/v1/models` queue rows and `/v1/queues`.
+
+### Chain semantics
+
+`api.chat({model: 'a,b,c', messages, onFallback})`:
+- Each link tried in order.
+- Before invocation, `sampler.isAvailable(prefix)` consulted — if backoff-blocked, link is skipped without an attempt (reason `sampler_backoff`).
+- If `opts.matrixSource` is set (file path, URL, or function returning `{providers: [{id, models: [{id, usable_in_any_mode, modes}]}]}`), cells with `ok:false` for any mode are demoted to the END of the chain. `matrix_block` reason if encountered.
+- On link failure (`error`/`rate_limit`/`timeout`/`empty`/`content_policy`), `onFallback({from, to, reason, error})` fires, chain advances.
+- **`sampler.markFailed(prefix)` is NOT called when the next link shares the same prefix** — preserves "bad model id, try sibling" without triggering full provider backoff.
+- On exhaustion, throws with `err.chainHistory` and `err.attempted` populated.
+
+### Inspection helpers
+
+- `chain([...]).peekNext(n)` — returns next-N candidates `[{index, model, prefix, fallbackOn, blocked, reason}]` after sampler+matrix filtering. For dashboard "next-up" UI.
+- `sampler.peekStatus(provider)` — `{available, lastFailedAt, nextRetryAt, failCount}`.
+- `getRunHistory()` — per-invocation entries `{ts, requestedModel, resolvedLinks, attempted, finalModel, history, ...}`.
+- `listAllModelsAndQueues({matrixSource, queueSources, queuesMap})` — OpenAI-models-shape rows mixing `{id, object:'model'}` and `{id:'queue/<name>', object:'queue', links}`.
+
+### HTTP surface
+
+- `GET /v1/models` — includes `{id: 'queue/<name>', object: 'queue', queue_links: [...], source}` rows.
+- `GET /v1/queues` — `{queues: [{name, links, source}]}`.
+- `GET /v1/sampler/status` — `{status: [{provider, ok, failCount, nextCheckIn}]}`.
+- `GET /v1/runs` — `{runs: [...]}` — chain run history.
+
+### openai-compat fix
+
+`api.chat({model: 'groq/...'})` (or any brand-prefix model id) now works in single-shot — previously the `from:'openai'` path stripped the `{url, apiKey, body}` carrier in `buildParams`. The fix conditionally drops `from` when `provider === 'openai-compat'`. If you see `Failed to parse URL from undefined`, you've imported an older acptoapi.
+
 ## Claude Code CLI non-interactive streaming (for facade/bridge work)
 
 Invocation: `claude -p "<prompt>" --output-format stream-json --verbose --include-partial-messages --model <alias>`.

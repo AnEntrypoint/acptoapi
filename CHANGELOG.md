@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.0.57] - 2026-05-13
+
+### Added — Unified chain SDK surface
+- `chat({model: 'a,b,c'})` — comma-separated model strings resolve to a priority chain. Whitespace tolerated. Backward compat preserved (single model id still works).
+- `chat({model: 'queue/<name>'})` — named-queue prefix as alias for `chain/<name>`, with externally-configurable sources via `extraQueueSources: [paths]`. Default file `~/.acptoapi/queues.json`; opts `queuesMap` for in-memory injection.
+- `lib/queues.js` — `resolveQueue({name, queuesMap?, configPath?, extraQueueSources?})` and `listAllQueues(...)`.
+- `lib/matrix.js` — `loadMatrix(path|url|fn)` with 60s cache, `matrixScore(provider, model, matrix)` returning `{ok:bool|null, mode_count:n}`, `clearMatrixCache()`.
+- Sampler-aware chain: `chain-machine` consults `sampler.isAvailable(prefix)` before each link; if backoff-blocked, emits `FALLBACK` with `reason:'sampler_backoff'` without an attempt.
+- Matrix-aware chain: pass `opts.matrixSource`; cells with `ok:false` are demoted to the end of the chain (`matrix_block` short-circuit if encountered).
+- `chain([...]).peekNext(n)` — returns next-N candidates `[{index, model, prefix, fallbackOn, blocked, reason}]` after sampler+matrix filtering. For dashboard "next-up" UI.
+- `sampler.peekStatus(provider, model)` — returns `{available, lastFailedAt, nextRetryAt, failCount}` for diagnostics. `lastFailedAt` newly tracked on `markFailed`.
+- `listAllModelsAndQueues({matrixSource, queueSources, queuesMap})` — OpenAI-models-shape rows mixing `{id, object:'model'}` and `{id:'queue/<name>', object:'queue', links}`.
+- Expanded run-history: `getRunHistory()` entries now carry `{ts, requestedModel, resolvedLinks, attempted:[{model,ms,ok,reason}], finalModel}`.
+- New HTTP routes on `createServer`: `/v1/queues`, `/v1/sampler/status`, `/v1/runs`. Route `/v1/models` now appends `queue/<name>` rows.
+- `createServer({queuesProvider})` — function returning a `{name: [...links]}` map merged into queue listings.
+
+### Fixed
+- `sdk.chat`/`sdk.stream` for `openai-compat` providers: previously `from:'openai'` stripped the `{url,apiKey,body}` carrier before reaching the provider, causing `fetch URL undefined`. Now skipped when provider is openai-compat. Single-shot brand-prefix calls (`chat({model:'groq/...'})`) work via `api.chat` for the first time.
+- `chain-machine` no longer marks the entire provider prefix as failed when the next chain link shares the same prefix — preserves "bad model id, try sibling" semantics without triggering full provider backoff. Also: `reason:'error'` (generic non-classified) no longer triggers sampler markFailed; only `rate_limit`/`timeout`/`content_policy`.
+
+### Witnessed
+- Real call: `chat({model:'groq/this-model-does-not-exist-xyz,groq/llama-3.3-70b-versatile'})` against live Groq with real `GROQ_API_KEY` — first link 404s, chain descends, second link returns content, `onFallback` fires once, `getRunHistory()` last entry shows `resolvedLinks: ['groq/this-model-does-not-exist-xyz','groq/llama-3.3-70b-versatile']`, `finalModel: 'groq/llama-3.3-70b-versatile'`. See `test.js` "Witnessed real call" block.
+
 ## [Unreleased]
 
 ### Added

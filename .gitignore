@@ -42,6 +42,7 @@ rs-learn.db
 # <<< gm managed
 
 
+
 .codeinsight.digest
 .env
 *.log
