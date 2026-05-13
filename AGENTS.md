@@ -278,3 +278,46 @@ Default model selection: if caller passes only `provider`, resolver fills in `PR
 ## kilo protocol notes (2026-05-12)
 
 Kilo + opencode ACP daemons speak the same protocol (SSE event stream + REST session/message). Required ordering: open `GET /event` SSE BEFORE `POST /session/<id>/message` or events drop. Terminate on `session.idle`. Surfaces only assembled content (no tool_calls back to caller). Implementations in consumers (e.g., freddie `src/agent/llm_resolver.js::acpChat`) must mirror this ordering.
+
+## Live model probe (2026-05-13)
+
+`lib/model-probe-live.js` enumerates each configured provider's `/models` endpoint, chat-probes up to `ACPTOAPI_PROBE_CAP` (default 100) models per provider with a 1-token request, and caches the working set sorted by latency. `handleAnthropicMessages` auto-uses this chain whenever `isFresh()` is true; otherwise it kicks off the probe in the background and uses the static `buildAutoChain` for the current request.
+
+Knobs:
+- `ACPTOAPI_LIVE_PROBE=1` — force live chain even on cold cache (per-request via header `x-live-probe: 1`).
+- `ACPTOAPI_DISABLE_PROBE=1` — disable startup background probe entirely.
+- `ACPTOAPI_PROBE_CAP=N` — max models per provider (default 100).
+- `ACPTOAPI_PROBE_CONCURRENCY=N` — bounded in-flight chat-probes (default 12).
+- `ACPTOAPI_PROBE_TTL_MS=N` — in-memory and on-disk TTL (default 10min).
+- `ACPTOAPI_PROBE_CACHE_PATH=<file>` — defaults to `~/.acptoapi/probe-cache.json`; persists across reboots so cold `bunx` invocations skip the 30–60s warmup.
+- `ACPTOAPI_PROBE_OLLAMA=1` — include local ollama in the probe even without `OLLAMA_URL` set.
+
+Probe covers brand providers (groq, openrouter, …) plus anthropic, gemini, ollama when their env keys are present. Each model gets one billable token charged on first probe (and once per TTL window). Disable with `ACPTOAPI_DISABLE_PROBE=1` if cost is a concern.
+
+Endpoints:
+- `GET /debug/probe-live[?force=1]` — list working models, the chain, and probe activity log.
+- `GET /v1/chains` — list built-in + runtime named chains with their resolved links.
+- `POST /v1/chains` body `{name, links: [...]}` — register a runtime chain.
+- `DELETE /v1/chains?name=<name>` — remove a runtime chain.
+
+## Named chain selection (2026-05-13)
+
+Caller sends `model: <chain-name>` in `/v1/messages` (or `/v1/chat/completions`). Resolution order: runtime registry (`~/.acptoapi/chains.json` + `ACPTOAPI_CHAINS` env JSON + `POST /v1/chains`) → built-in (`fast`, `cheap`, `smart`, `reasoning`, `free`, `local`). Unrecognized name falls through to default auto-chain so any caller-supplied model that isn't a chain still works.
+
+Built-ins in `lib/named-chains.js`:
+- `fast` — groq llama 3.3-70b → groq 3.1-8b → cerebras 3.3-70b
+- `cheap` — openrouter gemini flash-lite → groq 3.1-8b → mistral-tiny
+- `smart` — anthropic sonnet-4-6 → openrouter claude-sonnet-4.6 → mistral-large
+- `reasoning` — openrouter deepseek-v4-pro → sambanova DeepSeek-V3.2 → nvidia nemotron-3-nano-reasoning
+- `free` — openrouter gemini flash-lite → kilo/openrouter free → opencode/minimax free
+- `local` — ollama llama3.2 → kilo/openrouter free → opencode/minimax free
+
+## ACP auto-launch (2026-05-13)
+
+`lib/acp-launcher.js` probes `:4780` (kilo) and `:4790` (opencode) at server boot. If down, tries an ordered list of spawn commands per daemon: bare binary, subcommand, npx, bunx. Override the entire attempt list with `KILO_ACP_CMD=…` / `OPENCODE_ACP_CMD=…` (shell string). `ACPTOAPI_DISABLE_ACP_AUTOLAUNCH=1` opts out.
+
+Each attempt is given 600ms to fail-fast (ENOENT, immediate exit) before moving to the next. The chain treats kilo + opencode as the second-to-last fallback before the claude CLI. If both daemons fail to launch, the chain still tries the links — they just return "fetch failed" quickly and fall through.
+
+## Default fallback order (2026-05-13)
+
+`lib/auto-chain.js` DEFAULT_ORDER = `anthropic, openrouter, groq, nvidia, cerebras, sambanova, mistral, codestral, qwen, zai, cloudflare, gemini, opencode-zen, ollama, kilo, opencode, claude`. `claude` (CLI) is always last. `kilo`/`opencode` (ACP daemons) come before `claude`. Direct API providers fill the head of the chain in priority order (env-key presence required). Override the whole order with `PROVIDER_ORDER=a,b,c`.
