@@ -188,7 +188,7 @@ async function run() {
   console.log('[witnessed] ACP registry extensibility ok');
 
   // Test new daemons in auto-chain
-  const { buildAutoChain, hasProvider } = require('./lib/auto-chain');
+  const { hasProvider } = require('./lib/auto-chain');
   assert(hasProvider('gemini-cli'), 'gemini-cli detected as available');
   assert(hasProvider('qwen-code'), 'qwen-code detected as available');
   assert(hasProvider('codex-cli'), 'codex-cli detected as available');
