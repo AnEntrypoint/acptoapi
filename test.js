@@ -167,6 +167,32 @@ async function run() {
     console.log('[skip] real-call witness — no GROQ_API_KEY');
   }
   try { fs.unlinkSync(mTmp); } catch {}
+
+  // ACP daemon registry + spawn tests
+  const { registerBackend, BACKENDS, splitModel } = require('./lib/acp-client');
+  const { registerDaemon, CMDS, isUp } = require('./lib/acp-launcher');
+  assert(BACKENDS['kilo'] && BACKENDS['opencode'] && BACKENDS['gemini-cli'], 'gemini-cli backend registered');
+  assert.strictEqual(BACKENDS['gemini-cli'].port || BACKENDS['gemini-cli'].base.includes('4810'), true, 'gemini-cli on port 4810');
+  registerBackend('test-daemon', { base: 'http://localhost:9999', providerID: 'test', defaultModel: 'test/model' });
+  assert(BACKENDS['test-daemon'], 'registerBackend works');
+  const split = splitModel('test-daemon/my-model');
+  assert.strictEqual(split.prefix, 'test-daemon', 'splitModel recognizes new backend');
+  assert.strictEqual(split.model, 'my-model', 'splitModel extracts model');
+  registerDaemon('test-daemon', 9999, [{ command: 'test', args: [] }]);
+  assert(CMDS['test-daemon'], 'registerDaemon works');
+  assert.strictEqual(CMDS['test-daemon'].port, 9999, 'daemon port set correctly');
+  console.log('[witnessed] ACP registry extensibility ok');
+
+  // Test new daemons in auto-chain
+  const { buildAutoChain, hasProvider } = require('./lib/auto-chain');
+  assert(hasProvider('gemini-cli'), 'gemini-cli detected as available');
+  assert(hasProvider('qwen-code'), 'qwen-code detected as available');
+  assert(hasProvider('codex-cli'), 'codex-cli detected as available');
+  const chain = buildAutoChain();
+  const chainStr = chain.map(l => l.model).join(', ');
+  assert(chainStr.includes('gemini-cli'), 'gemini-cli in auto-chain: ' + chainStr);
+  console.log('[witnessed] auto-chain includes new ACP daemons ok');
+
   console.log('ALL TESTS PASS');
 }
 run().catch(e => { console.error('FAIL:', e.message, e.stack); process.exit(1); });
