@@ -171,8 +171,12 @@ async function run() {
   // ACP daemon registry + spawn tests
   const { registerBackend, BACKENDS, splitModel } = require('./lib/acp-client');
   const { registerDaemon, CMDS, isUp } = require('./lib/acp-launcher');
-  assert(BACKENDS['kilo'] && BACKENDS['opencode'] && BACKENDS['gemini-cli'], 'gemini-cli backend registered');
-  assert.strictEqual(BACKENDS['gemini-cli'].port || BACKENDS['gemini-cli'].base.includes('4810'), true, 'gemini-cli on port 4810');
+  assert(BACKENDS['kilo'] && BACKENDS['opencode'] && BACKENDS['gemini-cli'] && BACKENDS['qwen-code'] && BACKENDS['codex-cli'] && BACKENDS['copilot-cli'] && BACKENDS['cline'], 'all ACP backends registered');
+  assert.strictEqual(BACKENDS['gemini-cli'].base.includes('4810'), true, 'gemini-cli on port 4810');
+  assert.strictEqual(BACKENDS['qwen-code'].base.includes('4820'), true, 'qwen-code on port 4820');
+  assert.strictEqual(BACKENDS['codex-cli'].base.includes('4830'), true, 'codex-cli on port 4830');
+  assert.strictEqual(BACKENDS['copilot-cli'].base.includes('4840'), true, 'copilot-cli on port 4840');
+  assert.strictEqual(BACKENDS['cline'].base.includes('4850'), true, 'cline on port 4850');
   registerBackend('test-daemon', { base: 'http://localhost:9999', providerID: 'test', defaultModel: 'test/model' });
   assert(BACKENDS['test-daemon'], 'registerBackend works');
   const split = splitModel('test-daemon/my-model');
@@ -188,10 +192,16 @@ async function run() {
   assert(hasProvider('gemini-cli'), 'gemini-cli detected as available');
   assert(hasProvider('qwen-code'), 'qwen-code detected as available');
   assert(hasProvider('codex-cli'), 'codex-cli detected as available');
+  assert(hasProvider('copilot-cli'), 'copilot-cli detected as available');
+  assert(hasProvider('cline'), 'cline detected as available');
   const chain = buildAutoChain();
   const chainStr = chain.map(l => l.model).join(', ');
-  assert(chainStr.includes('gemini-cli'), 'gemini-cli in auto-chain: ' + chainStr);
-  console.log('[witnessed] auto-chain includes new ACP daemons ok');
+  assert(chainStr.includes('gemini-cli'), 'gemini-cli in auto-chain');
+  assert(chainStr.includes('qwen-code'), 'qwen-code in auto-chain');
+  assert(chainStr.includes('codex-cli'), 'codex-cli in auto-chain');
+  assert(chainStr.includes('copilot-cli'), 'copilot-cli in auto-chain');
+  assert(chainStr.includes('cline'), 'cline in auto-chain');
+  console.log('[witnessed] auto-chain includes all ACP daemons ok');
 
   console.log('ALL TESTS PASS');
 }

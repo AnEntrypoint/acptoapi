@@ -149,27 +149,51 @@ Maps to:
 
 When translating between formats, preserve reasoning blocks if both source and target support them. Check format docs for reasoning field names (may vary: `thinking`, `reasoning_content`, `content[type=thinking]`, etc.).
 
-## ACP Daemons — Gemini CLI, Qwen Code, Codex CLI (lib/acp-launcher.js)
+## ACP Daemons — Kilo, Opencode, Gemini CLI, Qwen Code, Codex CLI, Copilot CLI, Cline (lib/acp-launcher.js)
 
-acptoapi spawns and manages ACP (Agent Client Protocol) daemons — local agent processes that listen on defined ports and communicate via JSON-RPC over stdio. Three daemons are now auto-launched on boot (in addition to the existing kilo and opencode daemons):
+acptoapi spawns and manages ACP (Agent Client Protocol) daemons — local agent processes that listen on defined ports and communicate via JSON-RPC over stdio. Seven daemons are auto-launched on boot via `ensureRunning()`:
+
+- **Kilo** (port 4780, `kilo/openrouter/free`)
+  - Official: https://github.com/kilo-language/kilo-code
+  - Auto-spawn attempts: bare `kilo-acp`, `kilo acp`, `npx kilo-code-cli`, `bunx kilo-code-cli`
+  - Override with `KILO_ACP_CMD=<shell-string>`
+  - Requires: No API key (uses OpenRouter free tier fallback)
+
+- **Opencode** (port 4790, `opencode/minimax-m2.5-free`)
+  - Official: https://github.com/opencode-ai/opencode
+  - Auto-spawn attempts: bare `opencode-acp`, `opencode acp`, `npx opencode-ai`, `bunx opencode-ai`
+  - Override with `OPENCODE_ACP_CMD=<shell-string>`
+  - Requires: No API key (uses Minimax free tier)
 
 - **Gemini CLI** (port 4810, `gemini-cli/gemini-2.0-flash`)
   - Official: https://github.com/google/gemini-cli
-  - Auto-spawn attempts: bare `gemini`, subcommand `gemini serve`, `npx`, `bunx`
+  - Auto-spawn attempts: bare `gemini`, `gemini acp`, `npx gemini-cli`, `bunx gemini-cli`
   - Override with `GEMINI_CLI_ACP_CMD=<shell-string>` (e.g., `GEMINI_CLI_ACP_CMD=~/go/bin/gemini serve`)
   - Requires: `GEMINI_API_KEY` env var for upstream calls
 
 - **Qwen Code** (port 4820, `qwen-code/qwen-plus`)
   - Official: https://github.com/QwenLM/qwen-code
-  - Auto-spawn attempts: bare `qwen-code`, subcommand `qwen-code serve`, `npx`, `bunx`
+  - Auto-spawn attempts: bare `qwen-code`, `qwen-code acp`, `npx qwen-code-cli`, `bunx qwen-code-cli`
   - Override with `QWEN_CODE_ACP_CMD=<shell-string>`
   - Requires: `QWEN_API_KEY` env var for upstream calls
 
 - **Codex CLI** (port 4830, `codex-cli/gpt-4-turbo`)
   - Official: https://github.com/anthropics/codex-cli (if available)
-  - Auto-spawn attempts: bare `codex-cli`, subcommand `codex-cli serve`, `npx`, `bunx`
+  - Auto-spawn attempts: bare `codex-cli`, `codex-cli acp`, `npx openai-codex-cli`, `bunx openai-codex-cli`
   - Override with `CODEX_CLI_ACP_CMD=<shell-string>`
   - Requires: `OPENAI_API_KEY` env var for upstream calls
+
+- **Copilot CLI** (port 4840, `copilot-cli/gpt-4o`)
+  - Official: https://github.com/github/copilot-cli
+  - Auto-spawn attempts: `gh copilot acp`, bare `copilot-cli`, `npx @github/copilot-cli`, `bunx @github/copilot-cli`
+  - Override with `COPILOT_CLI_ACP_CMD=<shell-string>`
+  - Requires: `GITHUB_TOKEN` env var for authentication (via `gh` CLI)
+
+- **Cline** (port 4850, `cline/claude-opus-4-1`)
+  - Official: https://github.com/cline/cline
+  - Auto-spawn attempts: bare `cline`, `npx cline`, `bunx cline`
+  - Override with `CLINE_ACP_CMD=<shell-string>`
+  - Requires: `ANTHROPIC_API_KEY` env var for upstream calls
 
 ### Windows Spawning Behavior
 
@@ -212,15 +236,15 @@ registerDaemon('my-daemon', 9999, [
 
 - Brand providers (groq, nvidia, cerebras, etc.): checked via `isBrand()` + env key presence in `lib/openai-brands.js`
 - Built-in providers: `anthropic` → `ANTHROPIC_API_KEY`, `gemini` → `GEMINI_API_KEY`, `ollama` → always available (no key required)
-- ACP daemons: `kilo`, `opencode`, `gemini-cli`, `qwen-code`, `codex-cli` → always available (auto-spawned on boot if not running)
+- ACP daemons: `kilo`, `opencode`, `gemini-cli`, `qwen-code`, `codex-cli`, `copilot-cli`, `cline` → always available (auto-spawned on boot if not running)
 
 ### Priority Order
 
-Default: `anthropic, openrouter, groq, nvidia, cerebras, sambanova, mistral, codestral, qwen, zai, cloudflare, gemini, opencode-zen, ollama, kilo, opencode, gemini-cli, qwen-code, codex-cli, claude`
+Default: `anthropic, openrouter, groq, nvidia, cerebras, sambanova, mistral, codestral, qwen, zai, cloudflare, gemini, opencode-zen, ollama, kilo, opencode, gemini-cli, qwen-code, codex-cli, copilot-cli, cline, claude`
 
 - Direct API providers (anthropic, gemini) come first by priority
 - Brand providers (groq, nvidia, etc.) ranked by `PROVIDER_ORDER` env if set
-- ACP daemons (kilo, opencode, gemini-cli, qwen-code, codex-cli) come before `claude` CLI fallback
+- ACP daemons (kilo, opencode, gemini-cli, qwen-code, codex-cli, copilot-cli, cline) come before `claude` CLI fallback
 - `claude` (local CLI) is always last
 
 Override with `PROVIDER_ORDER=groq,nvidia,anthropic` (comma-separated). Only providers with available env keys appear in the chain.
