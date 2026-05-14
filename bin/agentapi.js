@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 'use strict';
+require('dotenv').config({ path: require('path').join(require('path').resolve(__dirname, '..'), '.env') });
 const { createServer } = require('../lib/server');
 
 const args = process.argv.slice(2);
