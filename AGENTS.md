@@ -151,7 +151,16 @@ When translating between formats, preserve reasoning blocks if both source and t
 
 ## ACP Daemons — 11 Agents (lib/acp-launcher.js)
 
-acptoapi spawns and manages ACP (Agent Client Protocol) daemons — local agent processes that listen on defined ports and communicate via JSON-RPC over stdio. Eleven daemons are auto-launched on boot via `ensureRunning()`:
+**STATUS: Aspirational. ACP server implementations are not yet published to npm.**
+
+acptoapi is designed to spawn and manage ACP (Agent Client Protocol) daemons — local agent processes that listen on defined ports and communicate via JSON-RPC over stdio. Infrastructure supports 11 daemons registered in `lib/acp-launcher.js`, but actual implementations are not yet available.
+
+To enable an ACP daemon, set its `<NAME>_ACP_CMD` environment variable to a shell command that starts the ACP server. For example:
+```bash
+export KILO_ACP_CMD="node path/to/kilo-acp-server.js"
+```
+
+The framework below documents the planned configuration, but auto-spawn attempts are disabled until packages become available:
 
 - **Kilo** (port 4780, `kilo/openrouter/free`)
   - Official: https://github.com/kilo-language/kilo-code
