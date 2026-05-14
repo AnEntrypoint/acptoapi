@@ -149,9 +149,9 @@ Maps to:
 
 When translating between formats, preserve reasoning blocks if both source and target support them. Check format docs for reasoning field names (may vary: `thinking`, `reasoning_content`, `content[type=thinking]`, etc.).
 
-## ACP Daemons — Kilo, Opencode, Gemini CLI, Qwen Code, Codex CLI, Copilot CLI, Cline (lib/acp-launcher.js)
+## ACP Daemons — 11 Agents (lib/acp-launcher.js)
 
-acptoapi spawns and manages ACP (Agent Client Protocol) daemons — local agent processes that listen on defined ports and communicate via JSON-RPC over stdio. Seven daemons are auto-launched on boot via `ensureRunning()`:
+acptoapi spawns and manages ACP (Agent Client Protocol) daemons — local agent processes that listen on defined ports and communicate via JSON-RPC over stdio. Eleven daemons are auto-launched on boot via `ensureRunning()`:
 
 - **Kilo** (port 4780, `kilo/openrouter/free`)
   - Official: https://github.com/kilo-language/kilo-code
@@ -195,6 +195,30 @@ acptoapi spawns and manages ACP (Agent Client Protocol) daemons — local agent 
   - Override with `CLINE_ACP_CMD=<shell-string>`
   - Requires: `ANTHROPIC_API_KEY` env var for upstream calls
 
+- **Hermes Agent** (port 4860, `hermes-agent/hermes-3-70b`)
+  - Official: https://github.com/NousResearch/hermes-agent
+  - Auto-spawn attempts: bare `hermes-acp`, `npx @nos/hermes-agent`, `bunx @nos/hermes-agent`
+  - Override with `HERMES_ACP_CMD=<shell-string>`
+  - Requires: No API key (uses integrated model provider)
+
+- **Cursor ACP** (port 4870, `cursor-acp/cursor-pro`)
+  - Official: https://github.com/roshan-c/cursor-acp
+  - Auto-spawn attempts: bare `cursor-acp`, `npx cursor-acp`, `bunx cursor-acp`
+  - Override with `CURSOR_ACP_CMD=<shell-string>`
+  - Requires: No API key (bridges Cursor CLI)
+
+- **Codeium Command** (port 4880, `codeium-cli/claude-opus-4`)
+  - Official: https://help.codeium.com (Codeium official ACP integration)
+  - Auto-spawn attempts: `codeium-cli acp`, `codeium command`, `npx codeium-cli`, `bunx codeium-cli`
+  - Override with `CODEIUM_ACP_CMD=<shell-string>`
+  - Requires: `CODEIUM_API_KEY` env var (optional, falls back to unauthenticated)
+
+- **ACP CLI Reference** (port 4890, `acp-cli/gpt-4-turbo`)
+  - Official: https://github.com/acp-protocol/acp-cli (Rust reference implementation)
+  - Auto-spawn attempts: `acp daemon start`, `npx acp-cli daemon start`, `bunx acp-cli daemon start`
+  - Override with `ACP_CLI_CMD=<shell-string>`
+  - Requires: No API key (reference implementation)
+
 ### Windows Spawning Behavior
 
 On Windows, daemons spawn with stdio redirected to temp files (`os.tmpdir()/.acptoapi-null`) instead of 'ignore'. This prevents visible console windows from appearing while properly detaching the process. The spool's `spawn({ detached: true, stdio: ['ignore', fileHandle, fileHandle] })` uses `proc.unref()` AFTER survival check (600ms) to ensure daemonization.
@@ -236,7 +260,7 @@ registerDaemon('my-daemon', 9999, [
 
 - Brand providers (groq, nvidia, cerebras, etc.): checked via `isBrand()` + env key presence in `lib/openai-brands.js`
 - Built-in providers: `anthropic` → `ANTHROPIC_API_KEY`, `gemini` → `GEMINI_API_KEY`, `ollama` → always available (no key required)
-- ACP daemons: `kilo`, `opencode`, `gemini-cli`, `qwen-code`, `codex-cli`, `copilot-cli`, `cline` → always available (auto-spawned on boot if not running)
+- ACP daemons: `kilo`, `opencode`, `gemini-cli`, `qwen-code`, `codex-cli`, `copilot-cli`, `cline`, `hermes-agent`, `cursor-acp`, `codeium-cli`, `acp-cli` → always available (auto-spawned on boot if not running)
 
 ### Priority Order
 

@@ -171,12 +171,16 @@ async function run() {
   // ACP daemon registry + spawn tests
   const { registerBackend, BACKENDS, splitModel } = require('./lib/acp-client');
   const { registerDaemon, CMDS, isUp } = require('./lib/acp-launcher');
-  assert(BACKENDS['kilo'] && BACKENDS['opencode'] && BACKENDS['gemini-cli'] && BACKENDS['qwen-code'] && BACKENDS['codex-cli'] && BACKENDS['copilot-cli'] && BACKENDS['cline'], 'all ACP backends registered');
+  assert(BACKENDS['kilo'] && BACKENDS['opencode'] && BACKENDS['gemini-cli'] && BACKENDS['qwen-code'] && BACKENDS['codex-cli'] && BACKENDS['copilot-cli'] && BACKENDS['cline'] && BACKENDS['hermes-agent'] && BACKENDS['cursor-acp'] && BACKENDS['codeium-cli'] && BACKENDS['acp-cli'], 'all 11 ACP backends registered');
   assert.strictEqual(BACKENDS['gemini-cli'].base.includes('4810'), true, 'gemini-cli on port 4810');
   assert.strictEqual(BACKENDS['qwen-code'].base.includes('4820'), true, 'qwen-code on port 4820');
   assert.strictEqual(BACKENDS['codex-cli'].base.includes('4830'), true, 'codex-cli on port 4830');
   assert.strictEqual(BACKENDS['copilot-cli'].base.includes('4840'), true, 'copilot-cli on port 4840');
   assert.strictEqual(BACKENDS['cline'].base.includes('4850'), true, 'cline on port 4850');
+  assert.strictEqual(BACKENDS['hermes-agent'].base.includes('4860'), true, 'hermes-agent on port 4860');
+  assert.strictEqual(BACKENDS['cursor-acp'].base.includes('4870'), true, 'cursor-acp on port 4870');
+  assert.strictEqual(BACKENDS['codeium-cli'].base.includes('4880'), true, 'codeium-cli on port 4880');
+  assert.strictEqual(BACKENDS['acp-cli'].base.includes('4890'), true, 'acp-cli on port 4890');
   registerBackend('test-daemon', { base: 'http://localhost:9999', providerID: 'test', defaultModel: 'test/model' });
   assert(BACKENDS['test-daemon'], 'registerBackend works');
   const split = splitModel('test-daemon/my-model');
@@ -187,21 +191,21 @@ async function run() {
   assert.strictEqual(CMDS['test-daemon'].port, 9999, 'daemon port set correctly');
   console.log('[witnessed] ACP registry extensibility ok');
 
-  // Test new daemons in auto-chain
+  // Test all daemons in auto-chain
   const { hasProvider } = require('./lib/auto-chain');
-  assert(hasProvider('gemini-cli'), 'gemini-cli detected as available');
-  assert(hasProvider('qwen-code'), 'qwen-code detected as available');
-  assert(hasProvider('codex-cli'), 'codex-cli detected as available');
-  assert(hasProvider('copilot-cli'), 'copilot-cli detected as available');
-  assert(hasProvider('cline'), 'cline detected as available');
+  assert(hasProvider('gemini-cli'), 'gemini-cli available');
+  assert(hasProvider('qwen-code'), 'qwen-code available');
+  assert(hasProvider('codex-cli'), 'codex-cli available');
+  assert(hasProvider('copilot-cli'), 'copilot-cli available');
+  assert(hasProvider('cline'), 'cline available');
+  assert(hasProvider('hermes-agent'), 'hermes-agent available');
+  assert(hasProvider('cursor-acp'), 'cursor-acp available');
+  assert(hasProvider('codeium-cli'), 'codeium-cli available');
+  assert(hasProvider('acp-cli'), 'acp-cli available');
   const chain = buildAutoChain();
   const chainStr = chain.map(l => l.model).join(', ');
-  assert(chainStr.includes('gemini-cli'), 'gemini-cli in auto-chain');
-  assert(chainStr.includes('qwen-code'), 'qwen-code in auto-chain');
-  assert(chainStr.includes('codex-cli'), 'codex-cli in auto-chain');
-  assert(chainStr.includes('copilot-cli'), 'copilot-cli in auto-chain');
-  assert(chainStr.includes('cline'), 'cline in auto-chain');
-  console.log('[witnessed] auto-chain includes all ACP daemons ok');
+  assert(chainStr.includes('gemini-cli') && chainStr.includes('cline') && chainStr.includes('hermes-agent') && chainStr.includes('acp-cli'), 'all 11 daemons in auto-chain');
+  console.log('[witnessed] auto-chain includes all 11 ACP daemons ok');
 
   console.log('ALL TESTS PASS');
 }
