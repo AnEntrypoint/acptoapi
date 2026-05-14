@@ -202,8 +202,8 @@ async function run() {
   assert(hasProvider('cursor-acp'), 'cursor-acp available');
   assert(hasProvider('codeium-cli'), 'codeium-cli available');
   assert(hasProvider('acp-cli'), 'acp-cli available');
-  const chain = buildAutoChain();
-  const chainStr = chain.map(l => l.model).join(', ');
+  const acChain = buildAutoChain();
+  const chainStr = acChain.map(l => l.model).join(', ');
   assert(chainStr.includes('gemini-cli') && chainStr.includes('cline') && chainStr.includes('hermes-agent') && chainStr.includes('acp-cli'), 'all 11 daemons in auto-chain');
   console.log('[witnessed] auto-chain includes all 11 ACP daemons ok');
 
