@@ -47,6 +47,7 @@
     "url": "https://github.com/AnEntrypoint/agentapi.git"
   },
   "dependencies": {
+    "@agentclientprotocol/sdk": "^0.21.1",
     "@anthropic-ai/sdk": "^0.95.1",
     "@google/genai": "^1.0.0",
     "dotenv": "^16.4.5",
