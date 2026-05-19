@@ -149,6 +149,24 @@ Maps to:
 
 When translating between formats, preserve reasoning blocks if both source and target support them. Check format docs for reasoning field names (may vary: `thinking`, `reasoning_content`, `content[type=thinking]`, etc.).
 
+## Multi-key per provider (lib/keyring.js, 2026-05-19)
+
+Every provider envKey (e.g. `GROQ_API_KEY`) accepts N keys seamlessly:
+
+- Primary: `GROQ_API_KEY`
+- Additional: `GROQ_API_KEY_1` … `GROQ_API_KEY_99` (each contributes one key, in declared order, deduped)
+- Escape hatch: `ACPTOAPI_KEYS_GROQ_API_KEY=["key-a","key-b"]` (JSON array)
+
+`lib/keyring.js` is the single source of truth — `getKey(envKey)` returns the first usable key (skipping cooldown-blocked ones); `listUsable(envKey)` returns all currently-usable keys in declared order; `markKeyFailed(envKey, key, reason)` records a per-key backoff with steps `[30s, 60s, 2m, 4m, 8m]` mirroring `lib/sampler.js`. Classification: 401/403 → `auth`, 429 → `rate_limit`, 5xx → `upstream_5xx` (not backoff-worthy; provider issue not key issue).
+
+`handleBrandChat` and `handleEmbeddings` in `lib/server.js` rotate keys inline on `auth`/`rate_limit` responses, only falling through to the next chain link after every key for the provider is exhausted. Server log emits `[acptoapi] key-rotate provider=<name> reason=<r> key-index=<i> next-index=<i+1>` on each rotation.
+
+Direct `process.env[envKey]` reads outside `lib/keyring.js` are forbidden for known provider keys — all consumers (sdk.js, server.js, passthrough.js, media-passthrough.js, auto-chain.js, model-resolver.js, model-probe-live.js) route through the keyring.
+
+**Observability:** `GET /v1/keyring/status` returns `{providers: [{provider, envKey, keys: [{index, key (masked: 'prefix…suffix'), ok, failCount, lastFailedAt, lastReason, inBackoff, nextRetryInMs}]}]}`.
+
+Witness (2026-05-19): with `GROQ_API_KEY=<bad>` + `GROQ_API_KEY_2=<real>`, POST `/v1/chat/completions model=groq/llama-3.3-70b-versatile` returned 200 with assistant content; server log shows the bad key got marked `auth` failed and the real key served the response — no provider fallback triggered.
+
 ## ACP Daemons — 11 Agents (lib/acp-launcher.js)
 
 acptoapi spawns and manages ACP (Agent Client Protocol) daemons — local agent processes that listen on defined ports and communicate via JSON-RPC over stdio. Eleven daemons are auto-launched on boot via `ensureRunning()`:
