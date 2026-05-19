@@ -29,6 +29,21 @@ if (args.includes('--probe')) {
     for (const c of checks) console.log(`${c.set ? 'OK ' : '-- '} ${c.name}${c.value ? ' = ' + c.value : ''}`);
     process.exit(0);
   })();
+} else if (args.includes('--update')) {
+  (async () => {
+    const { execSync } = require('child_process');
+    const opts = { stdio: 'inherit', windowsHide: true };
+    const tryRun = (cmd) => { try { execSync(cmd, opts); return true; } catch { return false; } };
+    console.log('[acptoapi] clearing npx + bun caches and re-fetching @latest...');
+    tryRun('npm cache clean --force');
+    tryRun(process.platform === 'win32' ? 'rmdir /s /q "%LOCALAPPDATA%\\npm-cache\\_npx" 2>nul' : 'rm -rf ~/.npm/_npx');
+    tryRun(process.platform === 'win32' ? 'rmdir /s /q "%LOCALAPPDATA%\\..\\Roaming\\npm-cache\\_npx" 2>nul' : 'true');
+    tryRun('bun pm cache rm');
+    const latest = (() => { try { return require('child_process').execSync('npm view acptoapi version', { windowsHide: true }).toString().trim(); } catch { return '(unknown)'; } })();
+    console.log(`[acptoapi] latest on npm: ${latest}`);
+    console.log('[acptoapi] next invocation of `bunx acptoapi@latest` or `npx -y acptoapi@latest` will fetch fresh.');
+    process.exit(0);
+  })();
 } else if (args.includes('--list-brands')) {
   const { listBrands } = require('../lib/openai-brands');
   for (const b of listBrands()) console.log(b);
