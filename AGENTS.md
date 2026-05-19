@@ -1,4 +1,4 @@
-# AGENTS.md — agentapi
+# AGENTS.md — acptoapi
 
 Non-obvious technical caveats for agents working on this repo.
 
@@ -346,7 +346,7 @@ Mapping raw request bodies through `translate()` requires converting to canonica
 
 ## Testing: No Mocks, Only Real Backends
 
-agentapi forbids mocks anywhere in tests. This includes:
+acptoapi forbids mocks anywhere in tests. This includes:
 - No mock providers in test.js
 - No monkey-patching of sdk.stream or sdk.chat
 - No stub HTTP responses
@@ -390,7 +390,7 @@ Chain fallback is driven by **xstate v5 FSM** (`lib/chain-machine.js`), not a li
 
 Persistent test server at c:\dev\nim (copy of .env, start.bat launcher script):
 
-- **start.bat**: Loads .env (provider keys), sets AGENTAPI_API_KEY=theultimateflex and PORT=4900, runs `node c:\dev\acptoapi\bin\agentapi.js`.
+- **start.bat**: Loads .env (provider keys), sets ACPTOAPI_API_KEY=theultimateflex and PORT=4900, runs `node c:\dev\acptoapi\bin\acptoapi.js`.
 - **Probe pattern** (run from c:\dev\test): Set ANTHROPIC_BASE_URL=http://127.0.0.1:4900, ANTHROPIC_AUTH_TOKEN=theultimateflex, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1, then invoke `claude -p "<prompt>" --output-format stream-json --verbose --include-partial-messages --debug`.
 - **Auto-chain routing**: Bare `claude-*` model names from CLI route through auto-chain (first link defaults to groq/llama-3.3-70b-versatile with current .env keys).
 - **Health check**: `curl http://127.0.0.1:4900/health` returns 200 with backends list. Confirms server is up.

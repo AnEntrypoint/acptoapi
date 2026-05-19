@@ -127,7 +127,7 @@ async function run() {
   assert(Array.isArray(runs.runs));
   const ct = await fetch(base + '/v1/messages/count_tokens', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: [{ role: 'user', content: 'abcd'.repeat(8) }] }) }).then(r => r.json());
   assert.ok(ct.input_tokens > 0);
-  assert.ok((await fetch(base + '/metrics').then(r => r.text())).includes('agentapi_uptime_seconds'));
+  assert.ok((await fetch(base + '/metrics').then(r => r.text())).includes('acptoapi_uptime_seconds'));
   const gct = await fetch(base + '/v1beta/models/gemini-2.0-flash:countTokens', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'hello world' }] }] }) }).then(r => r.json());
   assert.ok(gct.totalTokens > 0);
 

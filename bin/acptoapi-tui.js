@@ -16,14 +16,14 @@
 //   metrics                      prometheus-style metrics text
 //   tui                          enter interactive multi-pane TUI
 //
-// Env: ACPTOAPI_URL (default http://localhost:4800), AGENTAPI_API_KEY.
+// Env: ACPTOAPI_URL (default http://localhost:4800), ACPTOAPI_API_KEY (legacy AGENTAPI_API_KEY also honored).
 
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
 const URL_ = process.env.ACPTOAPI_URL || 'http://localhost:4800';
-const KEY = process.env.AGENTAPI_API_KEY || process.env.ACPTOAPI_API_KEY || '';
+const KEY = process.env.ACPTOAPI_API_KEY || process.env.AGENTAPI_API_KEY || '';
 const CHAINS_PATH = process.env.ACPTOAPI_CHAINS_PATH || path.join(os.homedir(), '.acptoapi', 'chains.json');
 const QUEUES_PATH = process.env.ACPTOAPI_QUEUES_PATH || path.join(os.homedir(), '.acptoapi', 'queues.json');
 const H = KEY ? { authorization: 'Bearer ' + KEY } : {};
@@ -68,7 +68,7 @@ CONFIGURE
 
 ENV
   ACPTOAPI_URL          server base URL (default http://localhost:4800)
-  AGENTAPI_API_KEY      bearer token if server requires auth
+  ACPTOAPI_API_KEY      bearer token if server requires auth (legacy AGENTAPI_API_KEY also honored)
   ACPTOAPI_CHAINS_PATH  local fallback when server unreachable (default ~/.acptoapi/chains.json)
   ACPTOAPI_QUEUES_PATH  local fallback queues file (default ~/.acptoapi/queues.json)
 

@@ -115,7 +115,7 @@ copy C:\dev\acptoapi\.env C:\dev\nim\.env
 # (See example below)
 
 # 4. Set environment variables
-set AGENTAPI_API_KEY=theultimateflex
+set ACPTOAPI_API_KEY=theultimateflex
 set PORT=4900
 ```
 
@@ -130,9 +130,9 @@ if exist .env (
     if not "%%A"=="" if not "%%A:~0,1%"=="#" set "%%A=%%B"
   )
 )
-set AGENTAPI_API_KEY=theultimateflex
+set ACPTOAPI_API_KEY=theultimateflex
 set PORT=4900
-node C:\dev\acptoapi\bin\agentapi.js
+node C:\dev\acptoapi\bin\acptoapi.js
 ```
 
 ### Phase 4: Verification & Testing
@@ -141,7 +141,7 @@ node C:\dev\acptoapi\bin\agentapi.js
 
 ```bash
 cd C:\dev\nim
-node ..\acptoapi\bin\agentapi.js
+node ..\acptoapi\bin\acptoapi.js
 # or use start.bat
 ```
 

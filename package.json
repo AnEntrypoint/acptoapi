@@ -5,8 +5,8 @@
   "main": "index.js",
   "types": "index.d.ts",
   "bin": {
-    "acptoapi": "./bin/agentapi.js",
-    "acptoapi-tui": "./bin/agentapi-tui.js"
+    "acptoapi": "./bin/acptoapi.js",
+    "acptoapi-tui": "./bin/acptoapi-tui.js"
   },
   "exports": {
     ".": {
@@ -44,7 +44,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/AnEntrypoint/agentapi.git"
+    "url": "https://github.com/AnEntrypoint/acptoapi.git"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.21.1",

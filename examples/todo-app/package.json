@@ -1,7 +1,7 @@
 {
-  "name": "agentapi-todo-app",
+  "name": "acptoapi-todo-app",
   "version": "1.0.0",
-  "description": "Simple todo app to test agentapi tooling",
+  "description": "Simple todo app to test acptoapi tooling",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

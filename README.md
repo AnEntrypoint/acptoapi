@@ -1,20 +1,20 @@
-# agentapi
+# acptoapi
 
 Any-to-any AI protocol bridge. Point any SDK (OpenAI, Anthropic, Gemini) at it — requests route to any backend (Kilo Code, opencode, Claude CLI, Anthropic API, Gemini, Ollama, AWS Bedrock) and stream back in the wire format the client expects.
 
 ## Quickstart
 
 ```bash
-npx agentapi                    # defaults: :4800, kilo :4780, opencode :4790
-npx agentapi --port 8080        # custom port
+npx acptoapi                    # defaults: :4800, kilo :4780, opencode :4790
+npx acptoapi --port 8080        # custom port
 ```
 
 Then point any AI SDK at `http://localhost:4800`.
 
 ## Demo
 
-- **Built-in**: `http://localhost:4800/` when agentapi is running (no CORS, full streaming)
-- **GH Pages**: https://anentrypoint.github.io/agentapi (browser-blocked from loopback by Chrome PNA — use built-in demo instead)
+- **Built-in**: `http://localhost:4800/` when acptoapi is running (no CORS, full streaming)
+- **GH Pages**: https://anentrypoint.github.io/acptoapi (browser-blocked from loopback by Chrome PNA — use built-in demo instead)
 
 ## Usage
 
@@ -61,7 +61,7 @@ const result = await model.generateContentStream('hi');
 Combine providers with predictable fallback. xstate-driven FSM under the hood — every transition is observable.
 
 ```js
-import { chain, fallback } from 'agentapi';
+import { chain, fallback } from 'acptoapi';
 
 // Plain array — falls back on error (default)
 const c = chain(['claude/sonnet', 'gemini/flash', 'ollama/llama3']);
@@ -118,7 +118,7 @@ curl http://localhost:4800/v1/chat/completions -d '{"model":"chain/prod","messag
 await chain('prod').chat({ messages: [...] });
 ```
 
-- `agentapi --list-chains` — list defined chains.
+- `acptoapi --list-chains` — list defined chains.
 - `GET /debug/chains` — defined chains + last 50 runs (state, links tried, reasons).
 
 ## Model prefixes
@@ -156,7 +156,7 @@ Bare model IDs (no prefix) route to kilo.
 
 ### Auto-fallback chain
 
-Set `model: 'auto'` to let agentapi pick the best available provider automatically:
+Set `model: 'auto'` to let acptoapi pick the best available provider automatically:
 
 ```bash
 curl http://localhost:4800/v1/messages -d '{"model":"auto","messages":[{"role":"user","content":"hi"}],"max_tokens":100}'
@@ -165,7 +165,7 @@ curl http://localhost:4800/v1/messages -d '{"model":"auto","messages":[{"role":"
 Provider priority is auto-detected from env keys. Override with `PROVIDER_ORDER`:
 
 ```bash
-PROVIDER_ORDER=groq,nvidia,anthropic npx agentapi
+PROVIDER_ORDER=groq,nvidia,anthropic npx acptoapi
 ```
 
 Default order: `anthropic, openrouter, groq, nvidia, cerebras, sambanova, mistral, codestral, qwen, zai, cloudflare, gemini, ollama`
@@ -211,7 +211,7 @@ Default order: `anthropic, openrouter, groq, nvidia, cerebras, sambanova, mistra
 ### Operations
 
 - `GET /metrics` — Prometheus exposition (request counters, latency summary, uptime)
-- Optional bearer auth: set `AGENTAPI_API_KEY=<secret>`; clients must send `Authorization: Bearer <secret>` (or `x-api-key`). `/health`, `/metrics`, `/debug/*`, and demo assets stay public.
+- Optional bearer auth: set `ACPTOAPI_API_KEY=<secret>` (legacy `AGENTAPI_API_KEY` still honored); clients must send `Authorization: Bearer <secret>` (or `x-api-key`). `/health`, `/metrics`, `/debug/*`, and demo assets stay public.
 
 ### NVIDIA NIM deployment
 
@@ -254,8 +254,8 @@ Keep `.env` and `start.bat` in the same directory — `.env` needs only `NVIDIA_
 ### CLI flags
 
 ```bash
-npx agentapi --probe          # show which provider env vars are set
-npx agentapi --list-brands    # list supported OpenAI-compat brand prefixes
+npx acptoapi --probe          # show which provider env vars are set
+npx acptoapi --list-brands    # list supported OpenAI-compat brand prefixes
 ```
 
 ### Gemini-compatible
@@ -279,7 +279,7 @@ npx agentapi --list-brands    # list supported OpenAI-compat brand prefixes
 Programmatic, server-free. Pass a model string, get events or buffered response back; built-in fallback chains.
 
 ```js
-const { chat, stream, chain } = require('agentapi');
+const { chat, stream, chain } = require('acptoapi');
 
 // One-shot. Model prefix selects backend automatically.
 const r = await chat({
@@ -322,7 +322,7 @@ Each link is tried in order. A link "fails" if it throws (missing env var, netwo
 ## Programmatic translate API
 
 ```js
-const { translate, buffer } = require('agentapi/lib/translate');
+const { translate, buffer } = require('acptoapi/lib/translate');
 
 // Stream any format through any provider, get any format back
 for await (const ev of translate({ from: 'openai', to: 'anthropic', provider: 'gemini', model: 'gemini-2.0-flash', messages: [...] })) {
@@ -372,7 +372,7 @@ CLI flags or env:
 
 ## Why
 
-The AI provider landscape is fragmented: each has its own wire protocol, streaming format, and auth scheme. agentapi normalises all of them through a shared internal event model — any input wire format → internal events → any output wire format → any provider backend. One bridge, every direction.
+The AI provider landscape is fragmented: each has its own wire protocol, streaming format, and auth scheme. acptoapi normalises all of them through a shared internal event model — any input wire format → internal events → any output wire format → any provider backend. One bridge, every direction.
 
 ## License
 

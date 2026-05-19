@@ -150,7 +150,7 @@ Once CLI packages are installed (optional), user can:
 ```bash
 # Start server
 cd C:\dev\nim
-node ..\acptoapi\bin\agentapi.js
+node ..\acptoapi\bin\acptoapi.js
 
 # In another terminal, test
 cd C:\dev\acptoapi
@@ -223,7 +223,7 @@ Expected output: `ALL TESTS PASS`
    ```
 
 3. **Run verification** (Phase 4 in SYSTEM_SETUP.md)
-   - Start server: `node C:\dev\acptoapi\bin\agentapi.js`
+   - Start server: `node C:\dev\acptoapi\bin\acptoapi.js`
    - Check health: `curl http://127.0.0.1:4900/health`
    - Run tests: `node C:\dev\acptoapi\test.js`
 

@@ -1,4 +1,4 @@
-# agentapi Debug & Validation Guide
+# acptoapi Debug & Validation Guide
 
 ## Overview
 
@@ -48,7 +48,7 @@ node .gm/exec-spool/in/nodejs/full-integration-check.js
 ### 3. Server Startup & Format Validation
 **File:** `.gm/exec-spool/in/nodejs/start-server-and-test.js`
 
-Starts agentapi server and validates format conversion works with real HTTP endpoints.
+Starts acptoapi server and validates format conversion works with real HTTP endpoints.
 
 ```bash
 node .gm/exec-spool/in/nodejs/start-server-and-test.js
@@ -69,7 +69,7 @@ node .gm/exec-spool/in/nodejs/start-server-and-test.js
 ### 4. Todo App Integration Test
 **File:** `.gm/exec-spool/in/nodejs/test-todo-app.js`
 
-Tests the todo app created to verify agentapi tooling integration.
+Tests the todo app created to verify acptoapi tooling integration.
 
 ```bash
 node .gm/exec-spool/in/nodejs/test-todo-app.js
@@ -86,16 +86,16 @@ node .gm/exec-spool/in/nodejs/test-todo-app.js
 **Output:** 10/10 CRUD operations verified.
 
 ### 5. Live Monitor (Continuous)
-**File:** `.gm/exec-spool/in/nodejs/agentapi-live-monitor.js`
+**File:** `.gm/exec-spool/in/nodejs/acptoapi-live-monitor.js`
 
-Continuously monitors running agentapi server for 60 seconds, tracking system health.
+Continuously monitors running acptoapi server for 60 seconds, tracking system health.
 
 ```bash
 # Start server first:
-node bin/agentapi.js
+node bin/acptoapi.js
 
 # In another terminal:
-node .gm/exec-spool/in/nodejs/agentapi-live-monitor.js
+node .gm/exec-spool/in/nodejs/acptoapi-live-monitor.js
 ```
 
 **What it monitors:**
@@ -210,10 +210,10 @@ node .gm/exec-spool/in/nodejs/test-todo-app.js
 
 # 5. Monitor live (requires running server)
 # Terminal 1:
-node bin/agentapi.js
+node bin/acptoapi.js
 
 # Terminal 2:
-node .gm/exec-spool/in/nodejs/agentapi-live-monitor.js
+node .gm/exec-spool/in/nodejs/acptoapi-live-monitor.js
 ```
 
 ---
@@ -227,4 +227,4 @@ node .gm/exec-spool/in/nodejs/agentapi-live-monitor.js
 ✓ Todo app ready for testing
 ✓ Comprehensive validation tools created
 
-The agentapi server is ready for production use with full Anthropic SDK extended thinking (reasoning-delta) support.
+The acptoapi server is ready for production use with full Anthropic SDK extended thinking (reasoning-delta) support.

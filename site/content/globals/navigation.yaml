@@ -1,5 +1,7 @@
 links:
-  - label: 247420
-    href: https://247420.xyz
-  - label: GitHub
-    href: https://github.com/AnEntrypoint
+  - { label: "install",   href: "#install" }
+  - { label: "models",    href: "#models" }
+  - { label: "endpoints", href: "#endpoints" }
+  - { label: "how",       href: "#how" }
+  - { label: "github ↗",  href: "https://github.com/AnEntrypoint/acptoapi" }
+  - { label: "247420",    href: "https://247420.xyz" }
