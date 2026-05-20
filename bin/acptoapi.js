@@ -51,7 +51,7 @@ if (args.includes('--probe')) {
 } else if (args.includes('--list-chains')) {
   const { listNamedChains, resolveNamedChain } = require('../lib/chain');
   const names = listNamedChains();
-  if (!names.length) { console.log('(no chains defined; add `chains:` to ~/.thebird/config.json or set THEBIRD_CONFIG)'); process.exit(0); }
+  if (!names.length) { console.log('(no chains defined; add `chains:` to ~/.acptoapi/config.json or set ACPTOAPI_CONFIG)'); process.exit(0); }
   for (const n of names) {
     const r = resolveNamedChain(n);
     console.log(`${n}: ${r.links.map(l => l.model).join(' → ')}`);

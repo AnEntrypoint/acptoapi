@@ -32,9 +32,37 @@ const tools = {
       required: ['expression']
     },
     execute: async ({ expression }) => {
+      // Safe arithmetic-only evaluator. Whitelists digits, decimals, whitespace,
+      // and + - * / ( ). Anything else → reject. No Function/eval.
+      if (typeof expression !== 'string' || !/^[\d+\-*/().\s]+$/.test(expression)) {
+        return { error: 'Invalid expression' };
+      }
       try {
-        // eslint-disable-next-line no-new-func
-        const result = Function('"use strict"; return (' + expression + ')')();
+        const tokens = expression.match(/\d+(?:\.\d+)?|[+\-*/()]/g) || [];
+        let pos = 0;
+        const peek = () => tokens[pos];
+        const eat = () => tokens[pos++];
+        const parseExpr = () => {
+          let left = parseTerm();
+          while (peek() === '+' || peek() === '-') { const op = eat(); const right = parseTerm(); left = op === '+' ? left + right : left - right; }
+          return left;
+        };
+        const parseTerm = () => {
+          let left = parseFactor();
+          while (peek() === '*' || peek() === '/') { const op = eat(); const right = parseFactor(); left = op === '*' ? left * right : left / right; }
+          return left;
+        };
+        const parseFactor = () => {
+          const t = eat();
+          if (t === '(') { const v = parseExpr(); if (eat() !== ')') throw new Error('paren'); return v; }
+          if (t === '-') return -parseFactor();
+          if (t === '+') return parseFactor();
+          const n = Number(t);
+          if (!Number.isFinite(n)) throw new Error('num');
+          return n;
+        };
+        const result = parseExpr();
+        if (pos !== tokens.length) throw new Error('trailing');
         return { result };
       } catch {
         return { error: 'Invalid expression' };
