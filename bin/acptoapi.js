@@ -3,6 +3,18 @@
 require('dotenv').config({ path: require('path').join(require('path').resolve(__dirname, '..'), '.env') });
 const { createServer } = require('../lib/server');
 
+// Last-resort guard: log unhandled rejections instead of letting the default
+// node behavior tear the whole acptoapi process (and every ACP daemon it
+// supervises) down. The chain logic recovers from any individual provider
+// failure by falling through to the next link; an uncaught rejection here
+// is always recoverable in spirit.
+process.on('unhandledRejection', (err) => {
+  console.error('[acptoapi] unhandledRejection:', err && err.message || err);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[acptoapi] uncaughtException:', err && err.message || err);
+});
+
 const args = process.argv.slice(2);
 const get = (f, d) => { const i = args.indexOf(f); return i >= 0 ? args[i + 1] : d; };
 const port = Number(get('--port', process.env.PORT || 4800));
