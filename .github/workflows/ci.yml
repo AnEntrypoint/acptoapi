@@ -8,9 +8,13 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '20' }
       - run: npm install --omit=optional --no-audit --no-fund
-      - run: |
-          for f in lib/*.js bin/*.js test.js; do node --check "$f"; done
+      - name: Syntax check + smoke import
+        run: |
+          # Check every existing js entrypoint; tolerate optional ones missing.
+          for f in lib/*.js bin/*.js; do node --check "$f"; done
+          [ -f test.js ] && node --check test.js || echo "(test.js absent — skipping)"
           node -e "import('./lib/server.js').then(m => console.log('import ok:', Object.keys(m)))"
+          node -e "const c=require('./lib/response-cache'); const p=require('./lib/pretest'); const a=require('./lib/auto-chain'); if (typeof a.modelCapabilityTools!=='function') throw new Error('modelCapabilityTools missing'); console.log('modules ok:', {cache:!!c.wrap, pretest:!!p.start, capability:!!a.modelCapabilityTools});"
   publish:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
