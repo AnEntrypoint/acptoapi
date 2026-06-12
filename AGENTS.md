@@ -419,3 +419,5 @@ Each attempt is given 600ms to fail-fast (ENOENT, immediate exit) before moving 
 ## Default fallback order (2026-05-13)
 
 `lib/auto-chain.js` DEFAULT_ORDER = `anthropic, openrouter, groq, nvidia, cerebras, sambanova, mistral, codestral, qwen, zai, cloudflare, gemini, opencode-zen, ollama, kilo, opencode, claude`. `claude` (CLI) is always last. `kilo`/`opencode` (ACP daemons) come before `claude`. Direct API providers fill the head of the chain in priority order (env-key presence required). Override the whole order with `PROVIDER_ORDER=a,b,c`.
+
+@.gm/next-step.md
