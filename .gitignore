@@ -1,4 +1,5 @@
 node_modules
+traffic-proxy*.js
 .probe*.log
 .probe*.mjs
 .test.log
