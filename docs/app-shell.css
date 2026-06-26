@@ -1,7 +1,7 @@
 /* ============================================================
-   App shell — IDE-modern density patterns
+   App shell -- IDE-modern density patterns
    Consumed by landing, ui_kits/*, docs, blog, slides
-   Light default · dark via prefers-color-scheme or [data-theme=dark]
+   Light default - dark via prefers-color-scheme or [data-theme=dark]
    ============================================================ */
 
 html, body {

@@ -416,9 +416,9 @@ code, .t-code {
   --panel-text-3:  #8b949e;
   --panel-accent:    var(--green);
   --panel-accent-2:  var(--green-deep);
-  /* Contrast pair — text to use ON --panel-accent. Light theme:
-     deep green bg → white text. Dark theme: light-mint bg → ink text.
-     NEVER hardcode #fff on accent backgrounds — mint is too light for
+  /* Contrast pair -- text to use ON --panel-accent. Light theme:
+     deep green bg -> white text. Dark theme: light-mint bg -> ink text.
+     NEVER hardcode #fff on accent backgrounds -- mint is too light for
      white text (a prior bug made "invisible light grey on lime"). */
   --panel-accent-fg: #ffffff;
   --panel-shadow:  0 1px 2px rgba(0,0,0,0.04), 0 1px 4px rgba(0,0,0,0.04);

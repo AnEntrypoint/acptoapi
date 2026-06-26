@@ -135,7 +135,7 @@ Every provider envKey (e.g. `GROQ_API_KEY`) accepts N keys seamlessly:
 - Additional: `GROQ_API_KEY_1` … `GROQ_API_KEY_99` (each contributes one key, in declared order, deduped)
 - Escape hatch: `ACPTOAPI_KEYS_GROQ_API_KEY=["key-a","key-b"]` (JSON array)
 
-`lib/keyring.js` is the single source of truth — `getKey(envKey)` returns the first usable key (skipping cooldown-blocked ones); `listUsable(envKey)` returns all currently-usable keys in declared order; `markKeyFailed(envKey, key, reason)` records a per-key backoff with steps `[30s, 60s, 2m, 4m, 8m]` mirroring `lib/sampler.js`. Classification: 401/403 → `auth`, 429 → `rate_limit`, 5xx → `upstream_5xx` (not backoff-worthy; provider issue not key issue).
+`lib/keyring.js` is the single source of truth — `getKey(envKey)` returns the first usable key (skipping cooldown-blocked ones); `listUsable(envKey)` returns all currently-usable keys in declared order; `markKeyFailed(envKey, key, reason)` records a per-key backoff with steps `[30s, 60s, 2m, 4m, 8m]` mirroring `lib/sampler.js`. Classification: 401/403 -> `auth`, 429 -> `rate_limit`, 5xx -> `upstream_5xx` (not backoff-worthy; provider issue not key issue).
 
 `handleBrandChat` and `handleEmbeddings` in `lib/server.js` rotate keys inline on `auth`/`rate_limit` responses, only falling through to the next chain link after every key for the provider is exhausted. Server log emits `[acptoapi] key-rotate provider=<name> reason=<r> key-index=<i> next-index=<i+1>` on each rotation.
 
@@ -249,8 +249,8 @@ registerDaemon('my-daemon', 9999, [
 ### Provider Detection
 
 - Brand providers (groq, nvidia, cerebras, etc.): checked via `isBrand()` + env key presence in `lib/openai-brands.js`
-- Built-in providers: `anthropic` → `ANTHROPIC_API_KEY`, `gemini` → `GEMINI_API_KEY`, `ollama` → always available (no key required)
-- ACP daemons: `kilo`, `opencode`, `qwen-code`, `codex-cli`, `copilot-cli`, `cline`, `hermes-agent`, `cursor-acp`, `codeium-cli`, `acp-cli` → always available (auto-spawned on boot if not running)
+- Built-in providers: `anthropic` -> `ANTHROPIC_API_KEY`, `gemini` -> `GEMINI_API_KEY`, `ollama` -> always available (no key required)
+- ACP daemons: `kilo`, `opencode`, `qwen-code`, `codex-cli`, `copilot-cli`, `cline`, `hermes-agent`, `cursor-acp`, `codeium-cli`, `acp-cli` -> always available (auto-spawned on boot if not running)
 
 ### Priority Order
 
@@ -309,7 +309,7 @@ Mapping raw request bodies through `translate()` requires converting to canonica
 
 ### Implementation
 
-- **Dispatch table**: `lib/openai-brands.js` maps prefix → vendor URL + env key
+- **Dispatch table**: `lib/openai-brands.js` maps prefix -> vendor URL + env key
 - **Detection**: `splitBrandModel(model)` regex `/^([a-z0-9-]+)\/(.+)$/` extracts prefix and model name; `isBrand(prefix)` validates
 - **Handling**: `lib/server.js` `handleBrandChat()` fetches upstream, streams body through unchanged
 - **API coverage**: Applies to chat, embeddings (`POST /v1/embeddings`), and token counting (`POST /v1/messages/count_tokens` — heuristic: length / 4)
@@ -400,15 +400,16 @@ Endpoints:
 
 ## Named chain selection (2026-05-13)
 
-Caller sends `model: <chain-name>` in `/v1/messages` (or `/v1/chat/completions`). Resolution order: runtime registry (`~/.acptoapi/chains.json` + `ACPTOAPI_CHAINS` env JSON + `POST /v1/chains`) → built-in (`fast`, `cheap`, `smart`, `reasoning`, `free`, `local`). Unrecognized name falls through to default auto-chain so any caller-supplied model that isn't a chain still works.
+Caller sends `model: <chain-name>` in `/v1/messages` (or `/v1/chat/completions`). Resolution order: runtime registry (`~/.acptoapi/chains.json` + `ACPTOAPI_CHAINS` env JSON + `POST /v1/chains`) -> built-in (`fast`, `cheap`, `smart`, `reasoning`, `free`, `local`). Unrecognized name falls through to default auto-chain so any caller-supplied model that isn't a chain still works.
 
 Built-ins in `lib/named-chains.js`:
-- `fast` — groq llama 3.3-70b → groq 3.1-8b → cerebras 3.3-70b
-- `cheap` — openrouter gemini flash-lite → groq 3.1-8b → mistral-tiny
-- `smart` — anthropic sonnet-4-6 → openrouter claude-sonnet-4.6 → mistral-large
-- `reasoning` — openrouter deepseek-v4-pro → sambanova DeepSeek-V3.2 → nvidia nemotron-3-nano-reasoning
-- `free` — openrouter gemini flash-lite → kilo/openrouter free → opencode/minimax free
-- `local` — ollama llama3.2 → kilo/openrouter free → opencode/minimax free
+- `fast` — groq llama 3.3-70b -> groq 3.1-8b -> cerebras 3.3-70b
+- `cheap` — openrouter gemini flash-lite -> groq 3.1-8b -> mistral-tiny
+- `smart` — anthropic sonnet-4-6 -> openrouter claude-sonnet-4.6 -> mistral-large
+- `reasoning` — openrouter deepseek-v4-pro -> sambanova DeepSeek-V3.2 -> nvidia nemotron-3-nano-reasoning
+- `free` — groq llama-4-scout -> openrouter/free -> google gemini-2.5-flash -> kilo/openrouter free -> opencode/minimax free
+- `hermes-free` — ordered free models for Hermes Agent (per remoteopenclaw.com best-free-models-for-hermes): free online APIs best-first (groq llama-4-scout -> openrouter/free -> google gemini-2.5-flash) then no-key ACP daemons (kilo/openrouter free -> opencode/minimax free -> hermes-agent/hermes-3-70b)
+- `local` — ollama llama3.2 -> kilo/openrouter free -> opencode/minimax free
 
 ## ACP auto-launch (2026-05-13)
 

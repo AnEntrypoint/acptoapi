@@ -33,7 +33,7 @@ const tools = {
     },
     execute: async ({ expression }) => {
       // Safe arithmetic-only evaluator. Whitelists digits, decimals, whitespace,
-      // and + - * / ( ). Anything else → reject. No Function/eval.
+      // and + - * / ( ). Anything else -> reject. No Function/eval.
       if (typeof expression !== 'string' || !/^[\d+\-*/().\s]+$/.test(expression)) {
         return { error: 'Invalid expression' };
       }

@@ -78,11 +78,11 @@ async function streamChat() {
         const d = c.choices?.[0]?.delta || {};
         if (d.content) state.content += d.content;
         if (d.reasoning_content) state.reasoning += d.reasoning_content;
-        stats.textContent = `${chunks} chunks · first ${firstChunkMs}ms · ${Math.round(performance.now() - t0)}ms total`;
+        stats.textContent = `${chunks} chunks - first ${firstChunkMs}ms - ${Math.round(performance.now() - t0)}ms total`;
         render();
       }
     }
-    stats.textContent = `done · ${chunks} chunks · first ${firstChunkMs}ms · ${Math.round(performance.now() - t0)}ms total`;
+    stats.textContent = `done - ${chunks} chunks - first ${firstChunkMs}ms - ${Math.round(performance.now() - t0)}ms total`;
   } catch (e) {
     stats.textContent = 'error: ' + e.message;
     state.content = 'ERROR: ' + e.message + '\n\nIs acptoapi running on ' + endpoint + ' ?\n\nStart it with:\n  npx acptoapi\n\nAnd ensure kilo is serving:\n  kilo serve --port 4780';

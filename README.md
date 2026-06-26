@@ -74,7 +74,7 @@ chain([
   { model: 'ollama/llama3', system: 'Be brief.' },
 ], {
   fallbackOn: ['error', 'timeout', 'rate_limit', 'empty', 'content_policy'],
-  onFallback: ({ from, to, reason }) => console.log(`${from} → ${to} (${reason})`),
+  onFallback: ({ from, to, reason }) => console.log(`${from} -> ${to} (${reason})`),
 });
 
 // Builder
@@ -372,7 +372,7 @@ CLI flags or env:
 
 ## Why
 
-The AI provider landscape is fragmented: each has its own wire protocol, streaming format, and auth scheme. acptoapi normalises all of them through a shared internal event model — any input wire format → internal events → any output wire format → any provider backend. One bridge, every direction.
+The AI provider landscape is fragmented: each has its own wire protocol, streaming format, and auth scheme. acptoapi normalises all of them through a shared internal event model — any input wire format -> internal events -> any output wire format -> any provider backend. One bridge, every direction.
 
 ## License
 

@@ -66,7 +66,7 @@ if (args.includes('--probe')) {
   if (!names.length) { console.log('(no chains defined; add `chains:` to ~/.acptoapi/config.json or set ACPTOAPI_CONFIG)'); process.exit(0); }
   for (const n of names) {
     const r = resolveNamedChain(n);
-    console.log(`${n}: ${r.links.map(l => l.model).join(' → ')}`);
+    console.log(`${n}: ${r.links.map(l => l.model).join(' -> ')}`);
   }
   process.exit(0);
 } else {

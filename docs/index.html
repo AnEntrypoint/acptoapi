@@ -179,21 +179,21 @@
 
       <h2 id="how">how it works</h2>
       <ul class="how">
-        <li><strong>messages[]</strong> → backend native format (ACP text part / claude <code>-p</code> prompt)</li>
-        <li><strong>text deltas</strong> → OpenAI <code>delta.content</code>, streamed one SSE frame per token</li>
-        <li><strong>reasoning</strong> → <code>delta.reasoning_content</code> (routed via partID → part.type)</li>
-        <li><strong>tool calls</strong> → OpenAI <code>delta.tool_calls</code> with input JSON accumulated from streamed deltas</li>
-        <li><strong>tool results</strong> (claude agentic loop) → folded into <code>delta.content</code> with a clear marker</li>
-        <li><strong>claude CLI</strong> is sandboxed: spawned in tempdir, no tools, no MCP, no skills, no hooks — pure prompt → text</li>
-        <li><strong>session end</strong> → <code>finish_reason: stop | length | tool_calls</code>, followed by <code>[DONE]</code></li>
+        <li><strong>messages[]</strong> -&gt; backend native format (ACP text part / claude <code>-p</code> prompt)</li>
+        <li><strong>text deltas</strong> -&gt; OpenAI <code>delta.content</code>, streamed one SSE frame per token</li>
+        <li><strong>reasoning</strong> -&gt; <code>delta.reasoning_content</code> (routed via partID -&gt; part.type)</li>
+        <li><strong>tool calls</strong> -&gt; OpenAI <code>delta.tool_calls</code> with input JSON accumulated from streamed deltas</li>
+        <li><strong>tool results</strong> (claude agentic loop) -&gt; folded into <code>delta.content</code> with a clear marker</li>
+        <li><strong>claude CLI</strong> is sandboxed: spawned in tempdir, no tools, no MCP, no skills, no hooks -- pure prompt -&gt; text</li>
+        <li><strong>session end</strong> -&gt; <code>finish_reason: stop | length | tool_calls</code>, followed by <code>[DONE]</code></li>
       </ul>
       <p>First chunk arrives within a few ms of the backend's first token. No buffering, no polling.</p>
     </main>
   </div>
   <footer class="app-status">
     <span class="item">main</span>
-    <span class="item">• MIT</span>
-    <span class="item">• node ≥18</span>
+    <span class="item">- MIT</span>
+    <span class="item">- node &gt;=18</span>
     <span class="spread"></span>
     <span class="item"><a href="https://github.com/AnEntrypoint/acptoapi">AnEntrypoint/acptoapi</a></span>
   </footer>

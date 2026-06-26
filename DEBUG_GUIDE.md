@@ -16,11 +16,11 @@ node .gm/exec-spool/in/nodejs/format-conversion-witness.js
 ```
 
 **What it tests:**
-- ✓ Basic text response handling
-- ✓ Reasoning-delta accumulation (CRITICAL)
-- ✓ Content block ordering (thinking before text)
-- ✓ Tool call handling with stop_reason mapping
-- ✓ Empty response handling
+- [x] Basic text response handling
+- [x] Reasoning-delta accumulation (CRITICAL)
+- [x] Content block ordering (thinking before text)
+- [x] Tool call handling with stop_reason mapping
+- [x] Empty response handling
 
 **Output:** Detailed breakdown of each test with input events and output blocks.
 
@@ -34,14 +34,14 @@ node .gm/exec-spool/in/nodejs/full-integration-check.js
 ```
 
 **What it checks:**
-- ✓ Format module exports and reasoning-delta support
-- ✓ Buffer function calls toResponse
-- ✓ Server buildModelProbes uses buffer
-- ✓ Server initializes sampler on boot
-- ✓ Sampler interval set to 1 hour (3600000ms)
-- ✓ Sampler has exponential backoff
-- ✓ Git commit history
-- ✓ Todo app structure
+- [x] Format module exports and reasoning-delta support
+- [x] Buffer function calls toResponse
+- [x] Server buildModelProbes uses buffer
+- [x] Server initializes sampler on boot
+- [x] Sampler interval set to 1 hour (3600000ms)
+- [x] Sampler has exponential backoff
+- [x] Git commit history
+- [x] Todo app structure
 
 **Output:** Integration pipeline diagram and pass/fail summary.
 
@@ -55,14 +55,14 @@ node .gm/exec-spool/in/nodejs/start-server-and-test.js
 ```
 
 **What it validates:**
-- ✓ Server starts and listens on port 4800
-- ✓ Sampler initializes with `[sampler] started with 3600000ms interval`
-- ✓ /health endpoint returns 200 with backends
-- ✓ /v1/sampler/status returns provider status
-- ✓ /v1/models returns available models
-- ✓ /debug/translate endpoint works
-- ✓ Format conversion layer loaded and working
-- ✓ reasoning-delta support verified
+- [x] Server starts and listens on port 4800
+- [x] Sampler initializes with `[sampler] started with 3600000ms interval`
+- [x] /health endpoint returns 200 with backends
+- [x] /v1/sampler/status returns provider status
+- [x] /v1/models returns available models
+- [x] /debug/translate endpoint works
+- [x] Format conversion layer loaded and working
+- [x] reasoning-delta support verified
 
 **Output:** Live server logs plus test results.
 
@@ -76,12 +76,12 @@ node .gm/exec-spool/in/nodejs/test-todo-app.js
 ```
 
 **What it tests:**
-- ✓ GET /api/todos returns list
-- ✓ POST /api/todos creates new todo
-- ✓ PATCH /api/todos/:id updates title
-- ✓ PATCH /api/todos/:id marks completed
-- ✓ DELETE /api/todos/:id removes todo
-- ✓ Error handling (400, 404)
+- [x] GET /api/todos returns list
+- [x] POST /api/todos creates new todo
+- [x] PATCH /api/todos/:id updates title
+- [x] PATCH /api/todos/:id marks completed
+- [x] DELETE /api/todos/:id removes todo
+- [x] Error handling (400, 404)
 
 **Output:** 10/10 CRUD operations verified.
 
@@ -102,7 +102,7 @@ node .gm/exec-spool/in/nodejs/acptoapi-live-monitor.js
 - Server health (backends online)
 - Sampler status (available/backoff/untested providers)
 - Available models (count and type breakdown)
-- Format conversion (anthropic→openai test)
+- Format conversion (anthropic->openai test)
 
 **Output:** Real-time logs with timestamps, elapsed time, and change detection.
 
@@ -112,22 +112,24 @@ node .gm/exec-spool/in/nodejs/acptoapi-live-monitor.js
 
 ```
 Server Boot
-  ↓
+  |
+  v
 createServer()
-  ├─ Initialize ACP daemons (kilo, opencode, gemini-cli, qwen-code, etc.)
-  └─ sampler.startSampler(buildModelProbes, 3600000ms)
-       ↓
+  |- Initialize ACP daemons (kilo, opencode, gemini-cli, qwen-code, etc.)
+  \- sampler.startSampler(buildModelProbes, 3600000ms)
+       |
+       v
 Sampler Probe Loop (hourly)
-  ├─ Call buildModelProbes()
-  └─ For each KNOWN model:
-       ├─ buffer(provider, stream, "anthropic")
-       │   └─ toFmt.toResponse(events)
-       │       ├─ accumulate reasoning-delta → thinking
-       │       ├─ create thinking content block
-       │       ├─ create text content block
-       │       └─ order: thinking[0] → text[1]
-       └─ On failure: exponential backoff
-            (30s → 60s → 120s → 240s → 480s)
+  |- Call buildModelProbes()
+  \- For each KNOWN model:
+       |- buffer(provider, stream, "anthropic")
+       |   \- toFmt.toResponse(events)
+       |       |- accumulate reasoning-delta -> thinking
+       |       |- create thinking content block
+       |       |- create text content block
+       |       \- order: thinking[0] -> text[1]
+       \- On failure: exponential backoff
+            (30s -> 60s -> 120s -> 240s -> 480s)
 ```
 
 ---
@@ -166,10 +168,10 @@ Sampler Probe Loop (hourly)
 
 ## Validation Results
 
-✓ All 14 integration checks pass
-✓ All 4 format conversion test groups pass
-✓ All 7 server startup tests pass
-✓ All 10 todo app CRUD tests pass
+[x] All 14 integration checks pass
+[x] All 4 format conversion test groups pass
+[x] All 7 server startup tests pass
+[x] All 10 todo app CRUD tests pass
 
 ---
 
@@ -220,11 +222,11 @@ node .gm/exec-spool/in/nodejs/acptoapi-live-monitor.js
 
 ## Status
 
-✓ Format conversion layer fixed and committed
-✓ All integration points verified
-✓ Server initialization verified
-✓ Sampler probing working
-✓ Todo app ready for testing
-✓ Comprehensive validation tools created
+[x] Format conversion layer fixed and committed
+[x] All integration points verified
+[x] Server initialization verified
+[x] Sampler probing working
+[x] Todo app ready for testing
+[x] Comprehensive validation tools created
 
 The acptoapi server is ready for production use with full Anthropic SDK extended thinking (reasoning-delta) support.

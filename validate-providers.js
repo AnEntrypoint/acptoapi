@@ -36,7 +36,7 @@ const providerStatus = REQUIRED_PROVIDERS.map(provider => {
   const mappedName = directProvidersMap[provider];
   const isDirect = mappedName && mappedName in PROVIDERS;
   const found = isBrand || isDirect;
-  const status = found ? '✅' : '❌';
+  const status = found ? '[OK]' : '[FAIL]';
 
   if (found) {
     if (isBrand) {
@@ -62,10 +62,10 @@ console.log(`\n${foundProviders}/${REQUIRED_PROVIDERS.length} required providers
 
 console.log('2. Checking Direct Providers...\n');
 const directProviderStatus = [
-  'anthropic' in PROVIDERS ? '✅ anthropic   - direct provider' : '❌ anthropic   - NOT FOUND',
-  'google' in PROVIDERS || 'gemini' in PROVIDERS ? '✅ google/gemini - direct provider' : '❌ google/gemini - NOT FOUND',
-  'openai-compat' in PROVIDERS ? '✅ openai-compat - router for brands' : '❌ openai-compat - NOT FOUND',
-  'acp' in PROVIDERS ? '✅ acp          - stdio wrapper for agents' : '❌ acp          - NOT FOUND'
+  'anthropic' in PROVIDERS ? '[OK] anthropic   - direct provider' : '[FAIL] anthropic   - NOT FOUND',
+  'google' in PROVIDERS || 'gemini' in PROVIDERS ? '[OK] google/gemini - direct provider' : '[FAIL] google/gemini - NOT FOUND',
+  'openai-compat' in PROVIDERS ? '[OK] openai-compat - router for brands' : '[FAIL] openai-compat - NOT FOUND',
+  'acp' in PROVIDERS ? '[OK] acp          - stdio wrapper for agents' : '[FAIL] acp          - NOT FOUND'
 ];
 directProviderStatus.forEach(line => console.log(line));
 
@@ -73,11 +73,11 @@ console.log('\n3. Checking ACP Agent Support...\n');
 console.log('ACP stdio wrapper implementation:');
 try {
   const { StdioAcpWrapper } = require('./lib/stdio-acp-wrapper');
-  console.log('✅ StdioAcpWrapper class found');
+  console.log('[OK] StdioAcpWrapper class found');
   console.log('   - Supports kilo-code (port 4780)');
   console.log('   - Supports opencode-ai (port 4790)');
 } catch (e) {
-  console.log('❌ StdioAcpWrapper not found: ' + e.message);
+  console.log('[FAIL] StdioAcpWrapper not found: ' + e.message);
 }
 
 console.log('\n4. Provider Configuration Summary...\n');
@@ -86,21 +86,21 @@ REQUIRED_PROVIDERS.forEach(provider => {
   const found = allBrands.includes(provider);
   if (found) {
     const config = BRANDS[provider];
-    console.log(`  ✅ ${provider.padEnd(15)} - ${config.envKey}`);
+    console.log(`  [OK] ${provider.padEnd(15)} - ${config.envKey}`);
   } else {
-    console.log(`  ❌ ${provider.padEnd(15)} - MISSING`);
+    console.log(`  [FAIL] ${provider.padEnd(15)} - MISSING`);
   }
 });
 
 console.log('\nDIRECT PROVIDERS (SDK or custom implementations):');
-console.log('  ✅ anthropic    - AnthropicSDK');
-console.log('  ✅ google       - Google Gemini API');
-console.log('  ✅ bedrock      - AWS Bedrock');
-console.log('  ✅ ollama       - Local Ollama instances');
+console.log('  [OK] anthropic    - AnthropicSDK');
+console.log('  [OK] google       - Google Gemini API');
+console.log('  [OK] bedrock      - AWS Bedrock');
+console.log('  [OK] ollama       - Local Ollama instances');
 
 console.log('\nACP AGENTS (stdio-based via HTTP wrapper):');
-console.log('  ✅ kilo-code    - spawned as: bun x kilo acp');
-console.log('  ✅ opencode-ai  - spawned as: npx opencode-ai acp');
+console.log('  [OK] kilo-code    - spawned as: bun x kilo acp');
+console.log('  [OK] opencode-ai  - spawned as: npx opencode-ai acp');
 
 console.log('\n=== Validation Complete ===\n');
 
@@ -109,14 +109,14 @@ const directProvidersOk = 'anthropic' in PROVIDERS && 'gemini' in PROVIDERS;
 const acpWrapperOk = true;
 
 if (allProvidersFound && directProvidersOk && acpWrapperOk) {
-  console.log('✅ ALL VALIDATIONS PASSED');
+  console.log('[OK] ALL VALIDATIONS PASSED');
   console.log('\nSystem is ready for:');
   console.log('  1. Downstream platform integration (all 15 gm platforms)');
   console.log('  2. Model enumeration and selection');
   console.log('  3. Fallback chain construction');
   process.exit(0);
 } else {
-  console.log('❌ VALIDATION FAILED');
+  console.log('[FAIL] VALIDATION FAILED');
   const missing = REQUIRED_PROVIDERS.filter(p => {
     const isBrand = allBrands.includes(p);
     const mappedName = directProvidersMap[p];

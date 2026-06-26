@@ -229,7 +229,7 @@ async function runTui() {
         { t: 'requested', w: 28, g: r => r.requestedModel || '?' },
         { t: 'final', w: 28, g: r => r.finalModel || '—' },
         { t: 'hops', w: 6, g: r => String((r.history || r.attempted || []).length || 1) },
-        { t: 'ok', w: 6, g: r => r.finalModel ? green('✓') : red('✗') },
+        { t: 'ok', w: 6, g: r => r.finalModel ? green('ok') : red('x') },
       ],
     },
     { name: 'Providers', fetch: async () => { const r = await api('/debug/providers'); return r.ok && Array.isArray(r.data) ? r.data : []; },
@@ -281,8 +281,8 @@ async function runTui() {
     if (S.mode === 'help') {
       const lines = [
         '', bold(' TUI keys'),
-        '   1-' + TABS.length + ' / ←→ / tab    switch tab',
-        '   ↑/↓                 move',
+        '   1-' + TABS.length + ' / <-> / tab    switch tab',
+        '   up/down              move',
         '   enter               edit (Chains/Queues) / detail',
         '   n / d               new / delete row',
         '   /                   filter (esc to clear)',
@@ -321,8 +321,8 @@ async function runTui() {
     if (S.mode === 'input') w(' ' + S.inputPrompt + S.input + '_');
     else if (S.msg) w(' ' + S.msg);
     else if (S.mode === 'help') w(dim(' [any key] back '));
-    else if (S.mode === 'edit' || S.mode === 'new') w(dim(' [↑↓] move  [a] add  [d] del  [s] save  [esc] cancel '));
-    else w(dim(` [1-${TABS.length}/←→] tabs  [↑↓] move  [enter] open  [n] new  [d] del  [/] filter  [r] refresh  [?] help  [q] quit `));
+    else if (S.mode === 'edit' || S.mode === 'new') w(dim(' [up/down] move  [a] add  [d] del  [s] save  [esc] cancel '));
+    else w(dim(` [1-${TABS.length}/<->] tabs  [up/down] move  [enter] open  [n] new  [d] del  [/] filter  [r] refresh  [?] help  [q] quit `));
   }
 
   const flash = (m, c = 'cyan') => { S.msg = ({ cyan, green, red, yellow })[c](m); render(); setTimeout(() => { S.msg = ''; render(); }, 1500); };
@@ -350,7 +350,7 @@ async function runTui() {
       if (k.name === 'd') { if (e.items.length) { e.items.splice(e.cursor, 1); e.cursor = Math.max(0, Math.min(e.items.length - 1, e.cursor)); } render(); return; }
       if (k.name === 's') {
         if (!e.name) return flash('needs name', 'red');
-        if (!e.items.length) return flash('needs ≥1 link', 'red');
+        if (!e.items.length) return flash('needs >=1 link', 'red');
         let ok = false;
         if (e.kind === 'chain') {
           const r = await api('/v1/chains', { method: 'POST', body: JSON.stringify({ name: e.name, links: e.items }) });

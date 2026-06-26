@@ -105,7 +105,7 @@ function Previews() {
     key: 'p' + i,
     code: String(i + 1).padStart(2, '0'),
     title: String(name).replace(/-/g, ' '),
-    sub: 'preview · ' + name + '.html',
+    sub: 'preview - ' + name + '.html',
     meta: 'open ↗',
     href: base + name + '.html'
   }));
@@ -225,8 +225,8 @@ function Tabs() {
 
 const navItems = (nav && nav.links ? nav.links : []).map(l => [String(l.label || ''), l.href]);
 
-const statusLeft = home.status_left || ['main', '• utf-8', '• lf'];
-const statusRight = home.status_right || ['247420 / mmxxvi', '• probably emerging'];
+const statusLeft = home.status_left || ['main', '- utf-8', '- lf'];
+const statusRight = home.status_right || ['247420 / mmxxvi', '- probably emerging'];
 
 const App = C.AppShell({
   topbar: C.Topbar({

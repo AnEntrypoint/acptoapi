@@ -55,7 +55,7 @@ ACP daemons spawn with:
 
 ## Installation & Setup
 
-### Phase 1: Code Integration (✓ COMPLETED)
+### Phase 1: Code Integration ([x] COMPLETED)
 
 The following files have been added/modified:
 
@@ -66,7 +66,7 @@ The following files have been added/modified:
 - **test.js** (UPDATED) — Added assertions for 11 daemons
 - **AGENTS.md** (UPDATED) — Documented all 11 daemons
 
-✓ All changes committed to origin/main (commit ef24914)
+[x] All changes committed to origin/main (commit ef24914)
 
 ### Phase 2: System-Wide CLI Installation (MANUAL)
 

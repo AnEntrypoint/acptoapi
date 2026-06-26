@@ -1,7 +1,7 @@
 # ACP Daemon Ecosystem Expansion — Completion Report
 
 **Date**: 2026-05-14  
-**Status**: ✓ COMPLETE  
+**Status**: [x] COMPLETE  
 **All code changes**: Committed and pushed to origin/main
 
 ---
@@ -14,7 +14,7 @@ The acptoapi system has been successfully expanded from 7 ACP daemons to 11 daem
 
 ## Work Completed
 
-### 1. Code Integration (✓ DONE)
+### 1. Code Integration ([x] DONE)
 
 #### New Files Created:
 - **lib/swe-bench-scores.js** — SWE-Bench v2 scores for 8 models
@@ -63,29 +63,29 @@ The acptoapi system has been successfully expanded from 7 ACP daemons to 11 daem
 
 | Daemon | Port | Default Model | Status |
 |--------|------|---|--------|
-| Kilo | 4780 | kilo/openrouter/free | ✓ Code-integrated |
-| Opencode | 4790 | opencode/minimax-m2.5-free | ✓ Code-integrated |
-| Gemini CLI | 4810 | gemini-cli/gemini-2.0-flash | ✓ Code-integrated |
-| Qwen Code | 4820 | qwen-code/qwen-plus | ✓ Code-integrated |
-| Codex CLI | 4830 | codex-cli/gpt-4-turbo | ✓ Code-integrated |
-| Copilot CLI | 4840 | copilot-cli/gpt-4o | ✓ Code-integrated |
-| Cline | 4850 | cline/claude-opus-4-1 | ✓ Code-integrated |
-| Hermes Agent | 4860 | hermes-agent/hermes-3-70b | ✓ Code-integrated |
-| Cursor ACP | 4870 | cursor-acp/cursor-pro | ✓ Code-integrated |
-| Codeium Command | 4880 | codeium-cli/claude-opus-4 | ✓ Code-integrated |
-| ACP CLI Reference | 4890 | acp-cli/gpt-4-turbo | ✓ Code-integrated |
+| Kilo | 4780 | kilo/openrouter/free | [x] Code-integrated |
+| Opencode | 4790 | opencode/minimax-m2.5-free | [x] Code-integrated |
+| Gemini CLI | 4810 | gemini-cli/gemini-2.0-flash | [x] Code-integrated |
+| Qwen Code | 4820 | qwen-code/qwen-plus | [x] Code-integrated |
+| Codex CLI | 4830 | codex-cli/gpt-4-turbo | [x] Code-integrated |
+| Copilot CLI | 4840 | copilot-cli/gpt-4o | [x] Code-integrated |
+| Cline | 4850 | cline/claude-opus-4-1 | [x] Code-integrated |
+| Hermes Agent | 4860 | hermes-agent/hermes-3-70b | [x] Code-integrated |
+| Cursor ACP | 4870 | cursor-acp/cursor-pro | [x] Code-integrated |
+| Codeium Command | 4880 | codeium-cli/claude-opus-4 | [x] Code-integrated |
+| ACP CLI Reference | 4890 | acp-cli/gpt-4-turbo | [x] Code-integrated |
 
 ### SWE-Bench v2 Scores (8 Models)
 
 ```
-Claude Sonnet 5:      92.4% ← Highest
+Claude Sonnet 5:      92.4% <- Highest
 GPT-5.5:              88.7%
 Claude Opus 4.7:      87.6%
 GPT-5.3-Codex:        85.0%
 Gemini 3.1 Pro:       80.6%
 Claude Opus 4.6:      80.8%
 Claude Sonnet 4.6:    79.6%
-Claude Opus 4.5:      80.9% ← Fallback
+Claude Opus 4.5:      80.9% <- Fallback
 ```
 
 Source: Official SWE-Bench v2 leaderboard (May 2026)
@@ -101,7 +101,7 @@ Source: Official SWE-Bench v2 leaderboard (May 2026)
 
 All ACP daemons spawn with:
 - `detached: true` — Background process, non-blocking
-- stdio → `os.tmpdir()/.acptoapi-null` — No visible console
+- stdio -> `os.tmpdir()/.acptoapi-null` — No visible console
 - `proc.unref()` after 600ms — Safe daemonization
 - atexit cleanup — File handles released on exit
 
@@ -196,16 +196,16 @@ Expected output: `ALL TESTS PASS`
 
 ## Validation Checklist
 
-- ✓ All 11 ACP daemons registered in code
-- ✓ All 11 ports assigned (4780-4890, 10-port spacing)
-- ✓ SWE-Bench scores integrated (8 models)
-- ✓ Auto-chain includes all 11 daemons
-- ✓ Windows spawning hardened
-- ✓ test.js passes syntax check
-- ✓ All code changes committed to main
-- ✓ Documentation complete (AGENTS.md, SYSTEM_SETUP.md)
-- ✓ Integration test framework in place
-- ✓ Git history clean
+- [x] All 11 ACP daemons registered in code
+- [x] All 11 ports assigned (4780-4890, 10-port spacing)
+- [x] SWE-Bench scores integrated (8 models)
+- [x] Auto-chain includes all 11 daemons
+- [x] Windows spawning hardened
+- [x] test.js passes syntax check
+- [x] All code changes committed to main
+- [x] Documentation complete (AGENTS.md, SYSTEM_SETUP.md)
+- [x] Integration test framework in place
+- [x] Git history clean
 
 ---
 
@@ -259,10 +259,10 @@ Expected output: `ALL TESTS PASS`
 
 ## Summary
 
-✓ **All code components delivered and tested**  
-✓ **Documentation complete**  
-✓ **CI passing**  
-✓ **Ready for deployment**
+[x] **All code components delivered and tested**  
+[x] **Documentation complete**  
+[x] **CI passing**  
+[x] **Ready for deployment**
 
 The system is now fully extensible to support 11 ACP daemons with benchmark-driven fallback prioritization. Users can now test with all available agents and rely on SWE-Bench scores for intelligent model selection.
 

@@ -12,18 +12,18 @@ $agents = @(
     @{ name = "acp-cli"; display = "ACP CLI Reference"; cmd = "acp" }
 )
 
-Write-Host "═══════════════════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host "=======================================================" -ForegroundColor Cyan
 Write-Host "  ACP Agent Installation Script" -ForegroundColor Cyan
-Write-Host "═══════════════════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host "=======================================================" -ForegroundColor Cyan
 Write-Host ""
 
 # Check npm
 Write-Host "Checking npm..." -ForegroundColor Yellow
 $npmVersion = npm --version
 if ($LASTEXITCODE -eq 0) {
-    Write-Host "✓ npm $npmVersion" -ForegroundColor Green
+    Write-Host "[ok] npm $npmVersion" -ForegroundColor Green
 } else {
-    Write-Host "✗ npm not found" -ForegroundColor Red
+    Write-Host "[x] npm not found" -ForegroundColor Red
     exit 1
 }
 
@@ -44,25 +44,25 @@ foreach ($agent in $agents) {
         # Verify command is available
         $cmdCheck = cmd /c "where $($agent.cmd)" 2>&1
         if ($LASTEXITCODE -eq 0) {
-            Write-Host " ✓" -ForegroundColor Green
+            Write-Host " [ok]" -ForegroundColor Green
             $installed++
         } else {
-            Write-Host " ⊘ (installed but command not found)" -ForegroundColor Yellow
+            Write-Host " [skip] (installed but command not found)" -ForegroundColor Yellow
         }
     } else {
-        Write-Host " ⊘ (npm install failed)" -ForegroundColor Yellow
+        Write-Host " [skip] (npm install failed)" -ForegroundColor Yellow
         $failed++
     }
 }
 
 Write-Host ""
-Write-Host "═══════════════════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host "=======================================================" -ForegroundColor Cyan
 Write-Host "Results: $installed installed, $failed failed" -ForegroundColor Cyan
-Write-Host "═══════════════════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host "=======================================================" -ForegroundColor Cyan
 Write-Host ""
 
 if ($installed -gt 0) {
-    Write-Host "✓ Agent installation complete" -ForegroundColor Green
+    Write-Host "[ok] Agent installation complete" -ForegroundColor Green
     Write-Host ""
     Write-Host "Verify with:" -ForegroundColor Yellow
     Write-Host "  npm list -g --depth=0 | grep -E '(kilo|opencode|hermes|cursor|codeium|acp)'" -ForegroundColor Gray
@@ -72,7 +72,7 @@ if ($installed -gt 0) {
     Write-Host "  where opencode-acp" -ForegroundColor Gray
     Write-Host "  where hermes-acp" -ForegroundColor Gray
 } else {
-    Write-Host "✗ No agents installed" -ForegroundColor Red
+    Write-Host "[x] No agents installed" -ForegroundColor Red
 }
 
 exit 0

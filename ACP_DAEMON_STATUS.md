@@ -31,16 +31,16 @@ The spawn command invocations are likely **incorrect**:
 Despite daemon failures, the system is fully functional with 12 brand providers:
 
 ### Working Features
-- ✓ 146 models enumerated (68 with SWE-Bench scores)
-- ✓ Models sorted by SWE-Bench descending
-- ✓ 21-link auto-chain with proper fallback
-- ✓ Exponential backoff sampler (30s, 60s, 120s, 240s, 480s intervals)
-- ✓ Real chat requests with streaming and non-streaming
-- ✓ All 12 brand providers operational
+- [x] 146 models enumerated (68 with SWE-Bench scores)
+- [x] Models sorted by SWE-Bench descending
+- [x] 21-link auto-chain with proper fallback
+- [x] Exponential backoff sampler (30s, 60s, 120s, 240s, 480s intervals)
+- [x] Real chat requests with streaming and non-streaming
+- [x] All 12 brand providers operational
 
 ### Sampler Status
-- ✓ OK: groq, openrouter, ollama (3 providers)
-- ✗ FAILED (30s backoff): all 11 ACP daemons
+- [x] OK: groq, openrouter, ollama (3 providers)
+- [fail] FAILED (30s backoff): all 11 ACP daemons
 - Status endpoint: `/v1/sampler/status`
 
 ### Known Models (by score)

@@ -69,6 +69,24 @@ test('resolveChain: auto sentinel returns null (handled by auto-chain)', () => {
     assert(r === null, `expected null for auto sentinel`);
 });
 
+test('resolveChain: free chain updated to 5 links, first groq/llama-4-scout', () => {
+    const { resolveChain } = require('./lib/named-chains');
+    const l = resolveChain('free');
+    assert(l && l.length === 5, `expected 5 links, got ${l && l.length}`);
+    assert(l[0].model === 'groq/llama-4-scout', `first link should be groq/llama-4-scout, got ${l[0].model}`);
+});
+
+test('resolveChain: hermes-free has 6 links, no ollama, last is hermes-agent', () => {
+    const { resolveChain } = require('./lib/named-chains');
+    const l = resolveChain('hermes-free');
+    assert(l && l.length === 6, `expected 6 links, got ${l && l.length}`);
+    assert(l[0].model === 'groq/llama-4-scout', `first link should be groq/llama-4-scout, got ${l[0].model}`);
+    const last = l[l.length - 1].model;
+    assert(last === 'hermes-agent/hermes-3-70b', `last link should be hermes-agent, got ${last}`);
+    const hasLocal = l.some(x => x.model.startsWith('ollama/'));
+    assert(!hasLocal, 'hermes-free should not contain local/ollama models');
+});
+
 // ---- auto-chain ----
 test('buildAutoChain: unknown model pinned at front, chain non-empty', () => {
     process.env.GROQ_API_KEY = 'test-key';
