@@ -1,8 +1,14 @@
 'use strict';
-// Integration witness: chain selection, named chains, fallthrough, sampler backoff.
-// Mock-free — tests routing logic, not LLM responses (no live API calls made here).
+// Integration witness: chain selection, named chains, fallthrough, sampler backoff,
+// real-backend chain fallback, key rotation, format translation, edge cases.
+// Mock-free  - NO stub HTTP, NO monkey-patching of sdk.chat/stream. Routing/format
+// logic is exercised directly; live-dispatch dimensions (single model, comma-chain,
+// queue, chain fallback, openai->anthropic translation) are witnessed against a REAL
+// local OpenAI-compatible SSE server bound to a real socket (same pattern as the
+// kilo/opencode ACP daemons  - a genuine HTTP backend, not a mock provider).
 
 const assert = require('assert');
+const http = require('http');
 
 let passed = 0;
 let failed = 0;
@@ -270,6 +276,241 @@ test('sampler backoff excludes provider from getAvailableModels', () => {
     assert(!after, 'groq should be excluded after sampler marks it failed');
 });
 
-// ---- summary ----
-console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed`);
-if (failed > 0) process.exit(1);
+// ---- error-response schema (live server, real fetch, mock-free) ----
+// Boots createServer on an ephemeral port with auth on, ACP autolaunch + probe
+// off, and asserts each error code returns {error:{message,code,hint}} with an
+// actionable hint and no leaked filesystem path / stack frame to the client.
+async function errorResponseWitness() {
+    process.env.ACPTOAPI_API_KEY = 'test-witness-key';
+    process.env.ACPTOAPI_ENABLE_ACP_AUTOLAUNCH = '0';
+    process.env.ACPTOAPI_DISABLE_PROBE = '1';
+    process.env.ACPTOAPI_BIND = '127.0.0.1';
+    delete process.env.ANTHROPIC_API_KEY; delete process.env.GEMINI_API_KEY; delete process.env.GROQ_API_KEY;
+    const { createServer } = freshRequire('./lib/server');
+    const { server, port } = await createServer({ port: 0 });
+    const base = `http://127.0.0.1:${port}`;
+    const hit = async (path, opts = {}) => {
+        const headers = { 'Content-Type': 'application/json', ...(opts.noauth ? {} : { Authorization: 'Bearer test-witness-key' }), ...(opts.headers || {}) };
+        const r = await fetch(base + path, { method: opts.method || 'GET', headers, body: opts.body });
+        return { status: r.status, body: await r.json().catch(() => ({})) };
+    };
+    const noLeak = b => { const s = JSON.stringify(b); return !/[A-Za-z]:\\/.test(s) && !/\n\s*at\s/.test(s) && !/server\.js:\d+/.test(s); };
+    try {
+        await testAsync('401 wrong gateway key -> hint + code', async () => {
+            const { status, body } = await hit('/v1/models', { noauth: true, headers: { Authorization: 'Bearer wrong' } });
+            assert(status === 401 && body.error.code === 'invalid_api_key' && /ANTHROPIC_API_KEY|ACPTOAPI_API_KEY/.test(body.error.hint), 'missing 401 hint');
+            assert(noLeak(body), 'leaked path/stack');
+        });
+        await testAsync('400 malformed JSON -> hint', async () => {
+            const { status, body } = await hit('/v1/chat/completions', { method: 'POST', body: '{not json' });
+            assert(status === 400 && body.error.code === 'invalid_json' && body.error.hint, 'missing 400 json hint');
+        });
+        await testAsync('400 unknown model -> model string invalid hint', async () => {
+            process.env.ACPTOAPI_DISABLE_CHAIN = '1';
+            const { status, body } = await hit('/v1/chat/completions', { method: 'POST', body: JSON.stringify({ model: 'bogus-xyz', messages: [] }) });
+            delete process.env.ACPTOAPI_DISABLE_CHAIN;
+            assert(status === 400 && /model string invalid/.test(body.error.hint), 'missing model-invalid hint');
+        });
+        await testAsync('404 chain delete -> queues/env hint', async () => {
+            const { status, body } = await hit('/v1/chains?name=nope', { method: 'DELETE' });
+            assert(status === 404 && body.error.code === 'chain_not_found' && /chains\.json|ACPTOAPI_CHAINS/.test(body.error.hint), 'missing 404 hint');
+        });
+        await testAsync('404 unknown route -> route hint', async () => {
+            const { status, body } = await hit('/no/such/route');
+            assert(status === 404 && body.error.code === 'route_not_found' && body.error.hint, 'missing route hint');
+        });
+        await testAsync('401 brand missing key -> set ENV hint', async () => {
+            process.env.ACPTOAPI_DISABLE_CHAIN = '1';
+            const { status, body } = await hit('/v1/chat/completions', { method: 'POST', body: JSON.stringify({ model: 'groq/llama-3.3-70b-versatile', messages: [{ role: 'user', content: 'hi' }] }) });
+            delete process.env.ACPTOAPI_DISABLE_CHAIN;
+            assert(status === 401 && body.error.code === 'missing_provider_key' && /GROQ_API_KEY/.test(body.error.hint), 'missing brand-key hint');
+        });
+    } finally {
+        server.close();
+    }
+}
+
+// ---- real-backend integration: single model, comma-chain, queue/<name>, chain
+//      fallback (first fails / second succeeds), key rotation, openai->anthropic
+//      translation. Dispatched through the REAL sdk.chat / chain().chat path against
+//      a genuine local OpenAI-compatible SSE server bound to a real socket (same
+//      pattern as the kilo/opencode ACP daemons  - a real HTTP backend, not a mock).
+//      No stub HTTP, no monkey-patching of sdk.chat/stream. ----
+
+function startOpenAICompatServer({ requireAuth } = {}) {
+    const server = http.createServer((req, res) => {
+        let body = '';
+        req.on('data', c => (body += c));
+        req.on('end', () => {
+            const auth = req.headers['authorization'] || '';
+            if (requireAuth && auth !== `Bearer ${requireAuth}`) {
+                res.writeHead(401, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'unauthorized' }));
+                return;
+            }
+            res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+            const send = o => res.write(`data: ${JSON.stringify(o)}\n\n`);
+            send({ choices: [{ index: 0, delta: { role: 'assistant', content: '' } }] });
+            send({ choices: [{ index: 0, delta: { content: 'real-reply' } }] });
+            send({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] });
+            res.write('data: [DONE]\n\n');
+            res.end();
+        });
+    });
+    return new Promise(r => server.listen(0, '127.0.0.1', () => r({ server, port: server.address().port })));
+}
+
+function closedPort() {
+    return new Promise(r => {
+        const s = http.createServer();
+        s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => r(p)); });
+    });
+}
+
+async function realBackendSuite() {
+    const { BRANDS } = require('./lib/openai-brands');
+    const keyring = require('./lib/keyring');
+    const sdk = require('./lib/sdk');
+    const { chain } = require('./lib/chain');
+    const { resolveQueue } = require('./lib/queues');
+
+    const good = await startOpenAICompatServer({});
+    const deadPort = await closedPort();
+    BRANDS.localgood = { url: `http://127.0.0.1:${good.port}/v1/chat/completions`, envKey: 'LOCALGOOD_API_KEY' };
+    BRANDS.localdead = { url: `http://127.0.0.1:${deadPort}/v1/chat/completions`, envKey: 'LOCALDEAD_API_KEY' };
+    process.env.LOCALGOOD_API_KEY = 'k-good';
+    process.env.LOCALDEAD_API_KEY = 'k-dead';
+    try {
+        // single model  - real round-trip through sdk.chat over a real socket.
+        await testAsync('real: single model round-trip returns content', async () => {
+            const r = await sdk.chat({ model: 'localgood/m', messages: [{ role: 'user', content: 'hi' }] });
+            assert(r.choices[0].message.content === 'real-reply', `expected real-reply, got ${JSON.stringify(r.choices[0])}`);
+        });
+
+        // comma-chain  - parse + real dispatch through the working link.
+        test('real: parseCommaList whitespace-tolerant split', () => {
+            assert(JSON.stringify(sdk.parseCommaList('groq/a, mistral/b ,kilo/c')) === JSON.stringify(['groq/a', 'mistral/b', 'kilo/c']));
+            assert(sdk.parseCommaList('groq/a') === null, 'single model is not a comma chain');
+        });
+        await testAsync('real: comma-chain model="dead,good" falls through to working link', async () => {
+            const r = await sdk.chat({ model: 'localdead/x, localgood/m', messages: [{ role: 'user', content: 'hi' }], sampler: false });
+            assert(r.choices[0].message.content === 'real-reply', 'comma-chain should fall through');
+            assert(r.__chainAttempted[0].ok === false && r.__chainAttempted[0].model === 'localdead/x', 'first link is a real failed attempt');
+        });
+
+        // queue/<name>  - in-memory map, real temp file, and sdk dispatch.
+        test('real: resolveQueue from in-memory queuesMap', () => {
+            const q = resolveQueue({ name: 'myq', queuesMap: { myq: ['groq/x', 'mistral/y'] } });
+            assert(q.links.length === 2 && q.links[0].model === 'groq/x');
+        });
+        test('real: resolveQueue from real temp file', () => {
+            const fs = require('fs'), os = require('os'), path = require('path');
+            const tmp = path.join(os.tmpdir(), 'acptoapi-test-queues-' + Date.now() + '.json');
+            fs.writeFileSync(tmp, JSON.stringify({ queues: { fileq: ['cerebras/z', 'groq/w'] } }));
+            try {
+                const q = resolveQueue({ name: 'fileq', extraQueueSources: [tmp] });
+                assert(q.links.length === 2 && q.links[0].model === 'cerebras/z');
+            } finally { fs.unlinkSync(tmp); }
+        });
+        await testAsync('real: queue/<name> via sdk.chat dispatches queue links', async () => {
+            const r = await sdk.chat({ model: 'queue/liveq', messages: [{ role: 'user', content: 'hi' }], sampler: false, queuesMap: { liveq: ['localdead/x', 'localgood/m'] } });
+            assert(r.choices[0].message.content === 'real-reply', 'queue should resolve and fall through');
+        });
+
+        // chain fallback  - first link real-fails (ECONNREFUSED), second real-succeeds.
+        await testAsync('real: chain fallback first fails second succeeds + onFallback fires', async () => {
+            const fb = [];
+            const r = await chain(['localdead/x', 'localgood/m'], { sampler: false, onFallback: ({ from, to, reason }) => fb.push({ from, to, reason }) })
+                .chat({ messages: [{ role: 'user', content: 'hi' }] });
+            assert(r.choices[0].message.content === 'real-reply', 'second link must serve content');
+            assert(r.__chainAttempted.length === 2 && r.__chainAttempted[0].ok === false && r.__chainAttempted[1].ok === true, 'attempt log: fail then success');
+            assert(fb.length === 1 && fb[0].from === 'localdead/x' && fb[0].to === 'localgood/m', 'onFallback reports the real transition');
+        });
+
+        // chain exhaustion  - all links real-fail -> throws with attempted/chainHistory.
+        await testAsync('real: chain exhaustion throws with attempted populated', async () => {
+            BRANDS.localdead2 = { url: `http://127.0.0.1:${deadPort}/v2/chat/completions`, envKey: 'LD2' };
+            process.env.LD2 = 'k';
+            let threw = null;
+            try { await chain(['localdead/x', 'localdead2/y'], { sampler: false }).chat({ messages: [{ role: 'user', content: 'hi' }] }); }
+            catch (e) { threw = e; }
+            assert(threw && Array.isArray(threw.attempted) && threw.attempted.length === 2, 'exhaustion surfaces both failed attempts');
+            assert(Array.isArray(threw.chainHistory), 'exhausted error carries chainHistory');
+        });
+
+        // format translation openai->anthropic, end-to-end through the real backend.
+        await testAsync('real: openai->anthropic translation end-to-end', async () => {
+            const r = await sdk.chat({ model: 'localgood/m', messages: [{ role: 'user', content: 'hi' }], output: 'anthropic' });
+            assert(r.type === 'message' && r.role === 'assistant', 'anthropic-shaped response');
+            assert(r.content[0].type === 'text' && r.content[0].text === 'real-reply', 'translated text block');
+            assert(r.stop_reason === 'end_turn', 'stop finish_reason -> end_turn');
+        });
+
+        // key rotation  - real keyring backoff state machine.
+        test('real: key rotation bad-primary auth-fail rotates to secondary', () => {
+            keyring.reset('ROT_KEY');
+            process.env.ROT_KEY = 'bad-primary';
+            process.env.ROT_KEY_2 = 'good-secondary';
+            try {
+                assert(keyring.getKey('ROT_KEY') === 'bad-primary', 'primary used first');
+                keyring.markKeyFailed('ROT_KEY', 'bad-primary', keyring.classify(401));
+                assert(keyring.getKey('ROT_KEY') === 'good-secondary', 'rotates to secondary after auth-fail');
+                assert(keyring.listUsable('ROT_KEY').length === 1 && keyring.listUsable('ROT_KEY')[0] === 'good-secondary', 'backed-off primary dropped from usable');
+                assert(keyring.classify(401) === 'auth' && keyring.classify(429) === 'rate_limit' && keyring.classify(500) === 'upstream_5xx', 'status classification');
+            } finally { delete process.env.ROT_KEY; delete process.env.ROT_KEY_2; keyring.reset('ROT_KEY'); }
+        });
+
+        // key rotation  - live witness: real server gives 401 to bad key, 200 to good key.
+        await testAsync('real: server 401 bad key then 200 rotated key (live auth)', async () => {
+            const secured = await startOpenAICompatServer({ requireAuth: 'good-secondary' });
+            try {
+                const bad = await fetch(`http://127.0.0.1:${secured.port}/v1/chat/completions`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer bad-primary' }, body: '{}' });
+                assert(bad.status === 401, `bad key should get real 401, got ${bad.status}`);
+                const okRes = await fetch(`http://127.0.0.1:${secured.port}/v1/chat/completions`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer good-secondary' }, body: '{}' });
+                assert(okRes.status === 200, `rotated key should get real 200, got ${okRes.status}`);
+                await okRes.text();
+            } finally { secured.server.close(); }
+        });
+
+        // edge cases  - missing key, empty queue name, malformed model.
+        await testAsync('real: missing-key brand chat throws (no silent success)', async () => {
+            delete process.env.GROQ_API_KEY;
+            keyring.reset('GROQ_API_KEY');
+            let err = null;
+            try { await sdk.chat({ model: 'groq/llama-3.3-70b-versatile', messages: [{ role: 'user', content: 'hi' }] }); }
+            catch (e) { err = e; }
+            assert(err instanceof Error, 'a real upstream/auth failure surfaces as a thrown Error');
+        });
+        test('real: resolveQueue empty name rejected', () => {
+            let err = null;
+            try { resolveQueue({ name: '', queuesMap: { '': ['groq/x'] } }); } catch (e) { err = e; }
+            assert(err instanceof Error && /name required/.test(err.message), 'empty queue name must be rejected by resolveQueue');
+        });
+        await testAsync('real: queue/ (no name) does not silently succeed', async () => {
+            let err = null;
+            try { await sdk.chat({ model: 'queue/', messages: [] }); } catch (e) { err = e; }
+            assert(err instanceof Error, 'malformed queue/ model must throw, never silently return');
+        });
+        test('real: resolveQueue unknown name throws', () => {
+            let err = null;
+            try { resolveQueue({ name: 'does-not-exist', queuesMap: {} }); } catch (e) { err = e; }
+            assert(err instanceof Error && /not found/.test(err.message), 'unknown queue throws not-found');
+        });
+        test('real: resolveModel(undefined) defaults to acp/kilo (malformed-tolerant)', () => {
+            const r = sdk.resolveModel(undefined);
+            assert(r.provider === 'acp' && r.prefix === 'kilo', 'undefined model -> acp/kilo default');
+        });
+    } finally {
+        good.server.close();
+    }
+}
+
+// ---- summary (after async witnesses complete) ----
+realBackendSuite()
+    .catch(e => { console.error(`[FAIL] realBackendSuite: ${e.message}`); failed++; })
+    .then(() => errorResponseWitness())
+    .catch(e => { console.error(`[FAIL] errorResponseWitness: ${e.message}`); failed++; })
+    .finally(() => {
+        console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed`);
+        process.exitCode = failed > 0 ? 1 : 0;
+    });

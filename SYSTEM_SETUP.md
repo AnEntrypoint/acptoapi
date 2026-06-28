@@ -59,12 +59,12 @@ ACP daemons spawn with:
 
 The following files have been added/modified:
 
-- **lib/swe-bench-scores.js** (NEW) — SWE-Bench score table
-- **lib/acp-launcher.js** (UPDATED) — Extended with 4 new daemons
-- **lib/acp-client.js** (UPDATED) — Added 4 new backends
-- **lib/auto-chain.js** (UPDATED) — Added 4 new daemons to priority
-- **test.js** (UPDATED) — Added assertions for 11 daemons
-- **AGENTS.md** (UPDATED) — Documented all 11 daemons
+- **lib/swe-bench-scores.js** (NEW)  - SWE-Bench score table
+- **lib/acp-launcher.js** (UPDATED)  - Extended with 4 new daemons
+- **lib/acp-client.js** (UPDATED)  - Added 4 new backends
+- **lib/auto-chain.js** (UPDATED)  - Added 4 new daemons to priority
+- **test.js** (UPDATED)  - Added assertions for 11 daemons
+- **AGENTS.md** (UPDATED)  - Documented all 11 daemons
 
 [x] All changes committed to origin/main (commit ef24914)
 

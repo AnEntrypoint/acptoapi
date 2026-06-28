@@ -1,5 +1,58 @@
 # Changelog
 
+All notable changes are documented here. This project follows [Semantic Versioning](https://semver.org/) and the [Keep a Changelog](https://keepachangelog.com/) format. **Breaking changes are flagged with ⚠ BREAKING.** Patch-level CI version bumps (`ci: bump version [skip ci]`) are omitted.
+
+## [1.0.124] - 2026-06-26
+
+### Added
+- Free-tier chain reordered per remoteopenclaw.com best-free-models ranking; new `hermes-free` named chain (free online APIs best-first, then no-key ACP daemons). See `lib/named-chains.js`.
+- Witnessed Claude Code CLI integration end-to-end against the live bridge.
+
+### Changed
+- ASCII-only sweep across source and docs.
+
+## [1.0.118] - 2026-06-xx
+
+### Added
+- Smart model selection: two-tier chain sort (capability tier, then SWE-bench score) so the strongest available model leads the chain.
+- `google/` alias for `gemini/`; unified endpoint routing so OpenAI, Anthropic, and Gemini surfaces share one resolution path.
+- Anthropic ↔ OpenAI format translation, dynamic live model probe (`lib/model-probe-live.js`), passthrough emitter, and an expanded real-backend test suite.
+- Model tools-capability ranking (`capability-tier`).
+- In-process LRU response cache plus idle pretest warmup.
+
+### Fixed
+- Engineering-DNA hardening: honest errors (no silent catastrophic modes), resilience on every failure path, tighter data model, subtractive cleanup.
+- Robustness: closed silent rejection sinks; two-tier auto-chain with a probe cap; last-resort `unhandledRejection` guard.
+- Per-link timeout honored; doubled ACP model prefix fixed so `auto` reaches a live model.
+- Chain always falls back seamlessly — rate-limit is never surfaced to the caller.
+- ACP daemons autolaunch by default; model cache refreshed before each chat chain.
+- CORS preflight now allows `x-cwd`, `anthropic-version`, and `anthropic-dangerous-direct-browser-access` (needed by freddie `callLLM` and direct browser Anthropic POST).
+- Auto-chain live-daemon filter, strong-model picker, and corrected kilo spawn command.
+- `/v1/models` lists the kilo + opencode catalog, sorted by SWE-bench score.
+- `/v1/chat/completions` treats `model` as a queue selector; unknown names fall through to the default queue. Non-streaming requests always run through the xstate fallback chain.
+
+### Windows
+- Dropped `DETACHED_PROCESS` from spawn `creationFlags` (source of conhost popups); split `cmd.exe` args so `CREATE_NO_WINDOW` propagates through `.cmd` shims — kills kilo/opencode popup windows.
+
+## [1.0.115] - 2026-05-xx
+
+### Added
+- `chatjimmy` ultimate-backup provider; hardened ACP `bunx`/`npx` fallback spawn ladder.
+- Local Ollama embedding fallback.
+
+### Changed
+- ⚠ **BREAKING** — Removed Claude Code CLI spawning and session-history reading. Consumers needing Claude Code chat or JSONL history must depend on `@anthropic-ai/claude-code` and `ccsniff` directly.
+- ⚠ **BREAKING** — Removed the gemini-cli OAuth path (`lib/cloud-generate.js`, `lib/oauth.js`, the `claude/` and `cloud/` model prefixes) — Google's gemini-cli is being discontinued upstream.
+- ⚠ **BREAKING** — Stripped legacy history endpoints, the gemini-cli daemon, and `claude`/`cloud` aliases. Decoupled from `.thebird` (config now lives under `~/.acptoapi/`).
+- ACP backends default to lazy-launch.
+
+### Fixed
+- Security: addressed audit findings.
+- Embeddings: inject `defaultModel` for cloud autopick on bare-model requests.
+
+### Windows
+- Suppressed conhost/popup flashes via direct `.exe` spawn + `CREATE_NO_WINDOW`; canonical invisible-batch spawn pattern.
+
 ## [1.0.57] - 2026-05-13
 
 ### Added — Unified chain SDK surface

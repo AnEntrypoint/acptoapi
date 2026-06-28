@@ -1,5 +1,5 @@
 /**
- * streaming.js — Streaming with all event types demonstrated
+ * streaming.js  - Streaming with all event types demonstrated
  *
  * Usage:
  *   GEMINI_API_KEY=your-key node examples/streaming.js

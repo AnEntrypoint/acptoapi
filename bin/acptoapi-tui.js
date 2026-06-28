@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 'use strict';
-// acptoapi-tui — atomic CLI by default, optional interactive TUI.
+// acptoapi-tui  - atomic CLI by default, optional interactive TUI.
 //
 // Default (no args): prints help.
-// Subcommands (atomic, JSON to stdout — agent-friendly):
+// Subcommands (atomic, JSON to stdout  - agent-friendly):
 //   status                       merged snapshot of server health + key counts
-//   chains [list|get N|add N L…|del N]
-//   queues [list|get N|add N L…|del N]
+//   chains [list|get N|add N L...|del N]
+//   queues [list|get N|add N L...|del N]
 //   models                       working models from /debug/probe-live
 //   sampler                      provider availability + backoff
 //   runs                         recent chain run history
@@ -41,7 +41,7 @@ function writeLocal(file, obj) { fs.mkdirSync(path.dirname(file), { recursive: t
 function out(obj) { process.stdout.write(JSON.stringify(obj, null, 2) + '\n'); }
 function die(msg, code = 1) { process.stderr.write(msg + '\n'); process.exit(code); }
 
-const HELP = `acptoapi-tui — observe and configure a running acptoapi server
+const HELP = `acptoapi-tui  - observe and configure a running acptoapi server
 
 USAGE
   acptoapi-tui                       show this help
@@ -61,9 +61,9 @@ OBSERVE
   metrics                            prometheus-style metrics text
 
 CONFIGURE
-  chains add <name> <model> [model…]   create / overwrite a runtime chain
+  chains add <name> <model> [model...]   create / overwrite a runtime chain
   chains del <name>                    delete a runtime chain
-  queues add <name> <model> [model…]   create / overwrite a named queue
+  queues add <name> <model> [model...]   create / overwrite a named queue
   queues del <name>                    delete a named queue
 
 ENV
@@ -111,7 +111,7 @@ async function cmdChains(args) {
     return out({ name, links: local[name] || null });
   }
   if (sub === 'add') {
-    const name = args[1] || die('chains add <name> <model> [model…]');
+    const name = args[1] || die('chains add <name> <model> [model...]');
     const links = args.slice(2);
     if (!links.length) die('need at least one model');
     const r = await api('/v1/chains', { method: 'POST', body: JSON.stringify({ name, links }) });
@@ -144,7 +144,7 @@ async function cmdQueues(args) {
     return out({ name, links: readQ()[name] || null });
   }
   if (sub === 'add') {
-    const name = args[1] || die('queues add <name> <model> [model…]');
+    const name = args[1] || die('queues add <name> <model> [model...]');
     const links = args.slice(2);
     if (!links.length) die('need at least one model');
     const f = readLocal(QUEUES_PATH) || { queues: {} };
@@ -170,7 +170,7 @@ async function cmdSimple(endpoint) {
 
 // ---------- interactive TUI ----------
 async function runTui() {
-  if (!process.stdin.isTTY) die('TUI needs a TTY; use atomic subcommands instead — see `acptoapi-tui` for help', 1);
+  if (!process.stdin.isTTY) die('TUI needs a TTY; use atomic subcommands instead  - see `acptoapi-tui` for help', 1);
   const readline = require('readline');
   const E = '\x1b[';
   const w = (s) => process.stdout.write(s);
@@ -178,7 +178,7 @@ async function runTui() {
   const bold = s => fmt(1, s), dim = s => fmt(2, s), inv = s => fmt(7, s);
   const cyan = s => fmt(36, s), yellow = s => fmt(33, s), red = s => fmt(31, s), green = s => fmt(32, s), gray = s => fmt(90, s);
   const stripAnsi = s => String(s).replace(/\x1b\[[0-9;]*m/g, '');
-  const trunc = (s, n) => { const v = stripAnsi(s); if (v.length <= n) return s + ' '.repeat(n - v.length); return v.slice(0, n - 1) + '…'; };
+  const trunc = (s, n) => { const v = stripAnsi(s); if (v.length <= n) return s + ' '.repeat(n - v.length); return v.slice(0, n - 1) + '...'; };
 
   const TABS = [
     { name: 'Chains', fetch: async () => {
@@ -202,7 +202,7 @@ async function runTui() {
       cols: [
         { t: 'name', w: 22, g: r => r.name },
         { t: 'links', w: 56, g: r => (r.links || []).slice(0, 4).join(', ') + ((r.links || []).length > 4 ? ` (+${r.links.length - 4})` : '') },
-        { t: 'source', w: 10, g: r => gray(r.source || '—') },
+        { t: 'source', w: 10, g: r => gray(r.source || ' - ') },
       ],
     },
     { name: 'Models', fetch: async () => {
@@ -212,22 +212,22 @@ async function runTui() {
       cols: [
         { t: 'provider', w: 18, g: r => r.provider || (r.model || '').split('/')[0] },
         { t: 'model', w: 50, g: r => r.model || r.id || '' },
-        { t: 'latency', w: 12, g: r => { const ms = r.latencyMs || r.latency_ms; if (!ms) return gray('—'); return ms < 500 ? green(ms + 'ms') : ms < 2000 ? yellow(ms + 'ms') : red(ms + 'ms'); } },
+        { t: 'latency', w: 12, g: r => { const ms = r.latencyMs || r.latency_ms; if (!ms) return gray(' - '); return ms < 500 ? green(ms + 'ms') : ms < 2000 ? yellow(ms + 'ms') : red(ms + 'ms'); } },
       ],
     },
     { name: 'Sampler', fetch: async () => { const r = await api('/v1/sampler/status'); return r.ok && r.data ? (r.data.status || []) : []; },
       cols: [
         { t: 'provider', w: 24, g: r => r.provider },
-        { t: 'status', w: 14, g: r => r.ok === false ? red('● failing') : r.ok ? green('● ok') : gray('● unknown') },
+        { t: 'status', w: 14, g: r => r.ok === false ? red('* failing') : r.ok ? green('* ok') : gray('* unknown') },
         { t: 'fails', w: 8, g: r => String(r.failCount || 0) },
-        { t: 'next', w: 12, g: r => r.nextCheckIn > 0 ? Math.ceil(r.nextCheckIn / 1000) + 's' : '—' },
+        { t: 'next', w: 12, g: r => r.nextCheckIn > 0 ? Math.ceil(r.nextCheckIn / 1000) + 's' : ' - ' },
       ],
     },
     { name: 'Runs', fetch: async () => { const r = await api('/v1/runs'); return r.ok && r.data ? (r.data.runs || []) : []; },
       cols: [
-        { t: 'when', w: 10, g: r => r.ts ? Math.floor((Date.now() - r.ts) / 1000) + 's' : '—' },
+        { t: 'when', w: 10, g: r => r.ts ? Math.floor((Date.now() - r.ts) / 1000) + 's' : ' - ' },
         { t: 'requested', w: 28, g: r => r.requestedModel || '?' },
-        { t: 'final', w: 28, g: r => r.finalModel || '—' },
+        { t: 'final', w: 28, g: r => r.finalModel || ' - ' },
         { t: 'hops', w: 6, g: r => String((r.history || r.attempted || []).length || 1) },
         { t: 'ok', w: 6, g: r => r.finalModel ? green('ok') : red('x') },
       ],
@@ -235,15 +235,15 @@ async function runTui() {
     { name: 'Providers', fetch: async () => { const r = await api('/debug/providers'); return r.ok && Array.isArray(r.data) ? r.data : []; },
       cols: [
         { t: 'name', w: 24, g: r => r.name },
-        { t: 'status', w: 18, g: r => r.status === 'ok' ? green('● up') : red('● ' + r.status) },
-        { t: 'latency', w: 12, g: r => r.latencyMs != null ? r.latencyMs + 'ms' : '—' },
+        { t: 'status', w: 18, g: r => r.status === 'ok' ? green('* up') : red('* ' + r.status) },
+        { t: 'latency', w: 12, g: r => r.latencyMs != null ? r.latencyMs + 'ms' : ' - ' },
       ],
     },
     { name: 'AutoChain', fetch: async () => { const r = await api('/debug/auto-chain'); return r.ok && r.data && Array.isArray(r.data.links) ? r.data.links.map((l, i) => ({ rank: i + 1, ...l })) : []; },
       cols: [
         { t: 'rank', w: 6, g: r => String(r.rank) },
         { t: 'model', w: 50, g: r => r.model || '?' },
-        { t: 'fallback on', w: 24, g: r => Array.isArray(r.fallbackOn) ? r.fallbackOn.join(',') : '—' },
+        { t: 'fallback on', w: 24, g: r => Array.isArray(r.fallbackOn) ? r.fallbackOn.join(',') : ' - ' },
       ],
     },
     { name: 'Config', fetch: async () => {
@@ -275,8 +275,8 @@ async function runTui() {
     w(E + '2J' + E + 'H');
     const tabs = TABS.map((t, i) => i === S.tab ? inv(bold(` ${i + 1} ${t.name} `)) : dim(` ${i + 1} ${t.name} `)).join('');
     w(' ' + bold(inv(' acptoapi ')) + tabs + '\n');
-    w(' ' + green('● ' + URL_) + (S.filter ? '  ' + dim('filter:') + cyan(' /' + S.filter) : '') + dim('   (auto-refresh 5s)') + '\n');
-    w(dim('─'.repeat(cols)) + '\n');
+    w(' ' + green('* ' + URL_) + (S.filter ? '  ' + dim('filter:') + cyan(' /' + S.filter) : '') + dim('   (auto-refresh 5s)') + '\n');
+    w(dim('-'.repeat(cols)) + '\n');
 
     if (S.mode === 'help') {
       const lines = [
@@ -301,7 +301,7 @@ async function runTui() {
     } else if (S.mode === 'edit' || S.mode === 'new') {
       const e = S.editing;
       w(' ' + bold('editing: ') + cyan(e.name || '<new>') + (S.mode === 'new' ? yellow('  [new]') : '') + '\n');
-      w(dim('─'.repeat(cols)) + '\n');
+      w(dim('-'.repeat(cols)) + '\n');
       e.items.forEach((it, i) => { const line = ' ' + String(i + 1).padStart(3) + '  ' + it; w((i === e.cursor ? inv(line) : line) + '\n'); });
     } else {
       const tab = TABS[S.tab], data = S.data[S.tab], cur = S.cur[S.tab];
@@ -314,7 +314,7 @@ async function runTui() {
         const line = ' ' + tab.cols.map(c => trunc(c.g(rows_[i]), c.w)).join(' ');
         w((i === cur ? inv(stripAnsi(line)) : line) + '\n');
       }
-      if (rows_.length === 0) w(' ' + dim('(no rows — server reachable? auto-refresh in 5s)') + '\n');
+      if (rows_.length === 0) w(' ' + dim('(no rows  - server reachable? auto-refresh in 5s)') + '\n');
     }
 
     w(E + size().rows + ';1H');

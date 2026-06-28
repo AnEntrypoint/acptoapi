@@ -4,21 +4,21 @@
 All 11 ACP daemons fail to spawn during startup. They are attempted via `bun x` and `npx` with fallback sequences, but exit with code 1 immediately. The system falls back to 12 brand providers (groq, nvidia, cerebras, mistral, sambanova, codestral, zai, qwen, cloudflare, openrouter, opencode-zen, google) which are all operational.
 
 ## Daemons (All Failing to Spawn)
-1. **kilo** (port 4780) — attempts: `bun x kilo-code-cli acp`, `npx --yes kilo-code-cli acp`, `kilo-acp`, `kilo`
+1. **kilo** (port 4780)  - attempts: `bun x kilo-code-cli acp`, `npx --yes kilo-code-cli acp`, `kilo-acp`, `kilo`
    - Package may not exist on npm or doesn't have `acp` subcommand
    
-2. **opencode** (port 4790) — attempts: `bun x opencode-ai acp`, `npx --yes opencode-ai acp`, `opencode-acp`, `opencode`
+2. **opencode** (port 4790)  - attempts: `bun x opencode-ai acp`, `npx --yes opencode-ai acp`, `opencode-acp`, `opencode`
    - Similar issue
    
-3. **gemini-cli** (port 4810) — attempts: `gemini acp`, `bun x gemini-cli acp`, `npx --yes gemini-cli acp`
-4. **qwen-code** (port 4820) — attempts: `bun x qwen-code-cli acp`, `npx --yes qwen-code-cli acp`
-5. **codex-cli** (port 4830) — attempts: `bun x openai-codex-cli acp`, `npx --yes openai-codex-cli acp`
-6. **copilot-cli** (port 4840) — attempts: `gh copilot acp`, `bun x @github/copilot-cli acp`, `npx --yes @github/copilot-cli acp`
-7. **cline** (port 4850) — attempts: `bun x cline acp`, `npx --yes cline acp`
-8. **hermes-agent** (port 4860) — attempts: `bun x @nos/hermes-agent acp`, `npx --yes @nos/hermes-agent acp`
-9. **cursor-acp** (port 4870) — attempts: `bun x cursor-acp acp`, `npx --yes cursor-acp acp`
-10. **codeium-cli** (port 4880) — attempts: `codeium-cli acp`, `bun x codeium-cli acp`, `npx --yes codeium-cli acp`
-11. **acp-cli** (port 4890) — attempts: `acp daemon start`, `bun x acp-cli daemon start`, `npx --yes acp-cli daemon start`
+3. **gemini-cli** (port 4810)  - attempts: `gemini acp`, `bun x gemini-cli acp`, `npx --yes gemini-cli acp`
+4. **qwen-code** (port 4820)  - attempts: `bun x qwen-code-cli acp`, `npx --yes qwen-code-cli acp`
+5. **codex-cli** (port 4830)  - attempts: `bun x openai-codex-cli acp`, `npx --yes openai-codex-cli acp`
+6. **copilot-cli** (port 4840)  - attempts: `gh copilot acp`, `bun x @github/copilot-cli acp`, `npx --yes @github/copilot-cli acp`
+7. **cline** (port 4850)  - attempts: `bun x cline acp`, `npx --yes cline acp`
+8. **hermes-agent** (port 4860)  - attempts: `bun x @nos/hermes-agent acp`, `npx --yes @nos/hermes-agent acp`
+9. **cursor-acp** (port 4870)  - attempts: `bun x cursor-acp acp`, `npx --yes cursor-acp acp`
+10. **codeium-cli** (port 4880)  - attempts: `codeium-cli acp`, `bun x codeium-cli acp`, `npx --yes codeium-cli acp`
+11. **acp-cli** (port 4890)  - attempts: `acp daemon start`, `bun x acp-cli daemon start`, `npx --yes acp-cli daemon start`
 
 ## Root Cause Hypothesis
 The spawn command invocations are likely **incorrect**:

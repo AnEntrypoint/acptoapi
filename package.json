@@ -1,7 +1,7 @@
 {
   "name": "acptoapi",
   "version": "1.0.124",
-  "description": "Anthropic SDK to multi-provider streaming bridge — converts Anthropic message format and tool calls to Gemini, OpenAI-compatible APIs",
+  "description": "Anthropic SDK to multi-provider streaming bridge  - converts Anthropic message format and tool calls to Gemini, OpenAI-compatible APIs",
   "main": "index.js",
   "types": "index.d.ts",
   "bin": {

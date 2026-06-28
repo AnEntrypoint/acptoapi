@@ -1,5 +1,5 @@
 /**
- * basic-chat.js — Simple single-turn and multi-turn chat using generateGemini
+ * basic-chat.js  - Simple single-turn and multi-turn chat using generateGemini
  *
  * Usage:
  *   GEMINI_API_KEY=your-key node examples/basic-chat.js

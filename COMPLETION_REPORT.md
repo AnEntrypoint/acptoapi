@@ -1,4 +1,4 @@
-# ACP Daemon Ecosystem Expansion — Completion Report
+# ACP Daemon Ecosystem Expansion  - Completion Report
 
 **Date**: 2026-05-14  
 **Status**: [x] COMPLETE  
@@ -17,38 +17,38 @@ The acptoapi system has been successfully expanded from 7 ACP daemons to 11 daem
 ### 1. Code Integration ([x] DONE)
 
 #### New Files Created:
-- **lib/swe-bench-scores.js** — SWE-Bench v2 scores for 8 models
+- **lib/swe-bench-scores.js**  - SWE-Bench v2 scores for 8 models
   - Provides benchmark scoring for fallback prioritization
   - Exports: `SWE_BENCH_SCORES`, `getModelScore()`, `sortByBenchmark()`
 
 #### Files Updated:
-- **lib/acp-launcher.js** — Extended with 4 new daemons
+- **lib/acp-launcher.js**  - Extended with 4 new daemons
   - Added: hermes-agent (port 4860), cursor-acp (4870), codeium-cli (4880), acp-cli (4890)
   - Windows spawning: stdio to tempfiles, detached process, unref() after 600ms
   
-- **lib/acp-client.js** — Added 4 new ACP backends
+- **lib/acp-client.js**  - Added 4 new ACP backends
   - Registered HTTP endpoints for all 11 daemons
   - Each with providerID and default model
   
-- **lib/auto-chain.js** — Updated prioritization
+- **lib/auto-chain.js**  - Updated prioritization
   - Extended DEFAULT_ORDER from 22 to 26 providers
   - Added DEFAULT_MODELS for 4 new daemons
   - Updated hasProvider() to recognize 11 ACP daemons
   
-- **test.js** — Updated assertions
+- **test.js**  - Updated assertions
   - Verified all 11 ACP backends registered
   - Port assertions for new daemons (4860, 4870, 4880, 4890)
   - hasProvider() coverage expanded
   - Auto-chain includes all 11 daemons
   
-- **AGENTS.md** — Full documentation
+- **AGENTS.md**  - Full documentation
   - All 11 daemons with spawn commands
   - Environment variable overrides
   - GitHub repository references
   - Windows process spawning behavior documented
 
 #### Documentation Created:
-- **SYSTEM_SETUP.md** — Comprehensive installation and verification guide
+- **SYSTEM_SETUP.md**  - Comprehensive installation and verification guide
   - System overview and component list
   - 4-phase setup procedure
   - Troubleshooting guide
@@ -100,10 +100,10 @@ Source: Official SWE-Bench v2 leaderboard (May 2026)
 ### Windows Safe Spawning
 
 All ACP daemons spawn with:
-- `detached: true` — Background process, non-blocking
-- stdio -> `os.tmpdir()/.acptoapi-null` — No visible console
-- `proc.unref()` after 600ms — Safe daemonization
-- atexit cleanup — File handles released on exit
+- `detached: true`  - Background process, non-blocking
+- stdio -> `os.tmpdir()/.acptoapi-null`  - No visible console
+- `proc.unref()` after 600ms  - Safe daemonization
+- atexit cleanup  - File handles released on exit
 
 ---
 
@@ -131,7 +131,7 @@ Install ACP CLI packages globally (user must do this):
 npm install -g kilo-code-cli opencode-ai @nos/hermes-agent cursor-acp codeium-cli acp-cli
 ```
 
-These are optional — system will still work with available daemons.
+These are optional  - system will still work with available daemons.
 
 ### Phase 3: Test Directory Setup
 
@@ -165,20 +165,20 @@ Expected output: `ALL TESTS PASS`
 
 ### Included Test Scripts
 
-1. **test.js** — Full integration test suite
+1. **test.js**  - Full integration test suite
    - 12 test groups covering SDK, chains, queues, matrix
    - Real backend tests (no mocks)
    - ACP registry verification
    - Auto-chain assertions
 
-2. **final-integration-test.js** — Component validation
+2. **final-integration-test.js**  - Component validation
    - 12 integration checks
    - SWE-Bench scores validation
    - Daemon registry completeness
    - Auto-chain prioritization
    - Documentation coherence
 
-3. **SYSTEM_SETUP.md** — Step-by-step verification
+3. **SYSTEM_SETUP.md**  - Step-by-step verification
    - Health check procedure
    - Port availability verification
    - CLI installation validation
@@ -190,7 +190,7 @@ Expected output: `ALL TESTS PASS`
 
 1. **CLI Package Installation**: User must install npm packages globally or provide custom spawn commands via env vars
 2. **Windows Console**: Even with `stdio: 'ignore'`, some environments may show brief console flash; redirecting to tempfile is more reliable but not 100% foolproof
-3. **Daemon Availability**: Health check shows "down" for daemons without installed CLI packages — this is expected and doesn't prevent system operation
+3. **Daemon Availability**: Health check shows "down" for daemons without installed CLI packages  - this is expected and doesn't prevent system operation
 
 ---
 
@@ -251,8 +251,8 @@ Expected output: `ALL TESTS PASS`
 
 ### Security Considerations
 
-- No new auth mechanisms — each daemon uses existing provider auth
-- Windows spawning redirects to tempfiles — data not exposed to other users
+- No new auth mechanisms  - each daemon uses existing provider auth
+- Windows spawning redirects to tempfiles  - data not exposed to other users
 - All env var overrides are explicitly named (DAEMON_ACP_CMD pattern)
 
 ---

@@ -19,7 +19,7 @@ html, body {
     background: var(--panel-0);
 }
 
-/* Top bar — sticky chrome, elevated via shadow so content doesn't bleed under */
+/* Top bar  - sticky chrome, elevated via shadow so content doesn't bleed under */
 .app-topbar {
     position: sticky;
     top: 0;
@@ -58,7 +58,7 @@ html, body {
 .app-topbar nav a:hover { background: var(--panel-hover); color: var(--panel-text); }
 .app-topbar nav a.active { color: var(--panel-accent-fg); background: var(--panel-accent); }
 
-/* Breadcrumb — under topbar */
+/* Breadcrumb  - under topbar */
 .app-crumb {
     position: sticky;
     top: 40px;
@@ -76,7 +76,7 @@ html, body {
 .app-crumb .sep { color: var(--panel-text-3); }
 .app-crumb .leaf { color: var(--panel-text); }
 
-/* Shell body — optional sidebar + main */
+/* Shell body  - optional sidebar + main */
 .app-body {
     display: grid;
     grid-template-columns: 240px 1fr;
@@ -192,7 +192,7 @@ html, body {
 .app-main pre .k { color: var(--panel-accent); }
 .app-main pre .s { color: #ce9178; }
 
-/* Panel — grouped content block, elevated */
+/* Panel  - grouped content block, elevated */
 .panel {
     background: var(--panel-1);
     border-radius: 8px;
@@ -215,7 +215,7 @@ html, body {
 }
 .panel-body { padding: 0; background: var(--panel-1); }
 
-/* Row — dense list item */
+/* Row  - dense list item */
 .row {
     display: grid;
     grid-template-columns: 80px 1fr auto;
@@ -338,7 +338,7 @@ html, body {
 .chip.accent { background: var(--panel-accent); color: var(--panel-accent-fg); }
 .chip.dim { color: var(--panel-text-2); background: var(--panel-1); }
 
-/* Status bar — accent-colored footer */
+/* Status bar  - accent-colored footer */
 .app-status {
     height: 24px;
     background: var(--panel-accent);
@@ -378,7 +378,7 @@ html, body {
 }
 .kv td:last-child { color: var(--panel-text); }
 
-/* Card grid — landing index */
+/* Card grid  - landing index */
 .cards {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));

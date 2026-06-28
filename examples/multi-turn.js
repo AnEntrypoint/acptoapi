@@ -1,5 +1,5 @@
 /**
- * multi-turn.js — Multi-turn conversation (chat history) example
+ * multi-turn.js  - Multi-turn conversation (chat history) example
  *
  * Usage:
  *   GEMINI_API_KEY=your-key node examples/multi-turn.js

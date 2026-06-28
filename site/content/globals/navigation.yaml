@@ -3,5 +3,5 @@ links:
   - { label: "models",    href: "#models" }
   - { label: "endpoints", href: "#endpoints" }
   - { label: "how",       href: "#how" }
-  - { label: "github ↗",  href: "https://github.com/AnEntrypoint/acptoapi" }
+  - { label: "github",  href: "https://github.com/AnEntrypoint/acptoapi" }
   - { label: "247420",    href: "https://247420.xyz" }

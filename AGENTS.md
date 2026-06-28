@@ -1,8 +1,8 @@
-# AGENTS.md — acptoapi
+# AGENTS.md  - acptoapi
 
 Non-obvious technical caveats for agents working on this repo.
 
-## Public API — unified chain SDK (since 1.0.57)
+## Public API  - unified chain SDK (since 1.0.57)
 
 acptoapi is the canonical home for LLM model resolution, chain fallback, sampler backoff, and matrix-aware scoring. **Downstream consumers (freddie, thebird, etc.) must NOT reimplement these locally.** The SDK delegates everything; consumers pass model strings and config.
 
@@ -10,52 +10,52 @@ acptoapi is the canonical home for LLM model resolution, chain fallback, sampler
 
 `api.chat({ model, messages, ... })` accepts three forms:
 
-1. **Single model id** — `'groq/llama-3.3-70b-versatile'`, `'anthropic/claude-haiku-4-5'`, `'ollama/llama3.2'`. Resolved via `resolveModel(model)`.
-2. **Comma-separated chain** — `'groq/llama-3.3-70b-versatile, mistral/mistral-tiny, kilo/openrouter/free'`. Whitespace tolerated. Dispatched as `chain([...])`.
-3. **`queue/<name>`** — named queue from `~/.acptoapi/queues.json` (default) or injected sources. Resolved via `resolveQueue({name, queuesMap?, configPath?, extraQueueSources?})`.
+1. **Single model id**  - `'groq/llama-3.3-70b-versatile'`, `'anthropic/claude-haiku-4-5'`, `'ollama/llama3.2'`. Resolved via `resolveModel(model)`.
+2. **Comma-separated chain**  - `'groq/llama-3.3-70b-versatile, mistral/mistral-tiny, kilo/openrouter/free'`. Whitespace tolerated. Dispatched as `chain([...])`.
+3. **`queue/<name>`**  - named queue from `~/.acptoapi/queues.json` (default) or injected sources. Resolved via `resolveQueue({name, queuesMap?, configPath?, extraQueueSources?})`.
 
-Also: `'chain/<name>'` — legacy alias of `queue/`, reads `~/.thebird/config.json` chains. Both supported.
+Also: `'chain/<name>'`  - legacy alias of `queue/`, reads `~/.thebird/config.json` chains. Both supported.
 
 ### Queue sources (in resolution order)
 
-1. `process.env.ACPTOAPI_QUEUES` or `~/.acptoapi/queues.json` — primary store. JSON `{queues: {<name>: [<model>, ...]}}` or flat `{<name>: [...]}`.
-2. `extraQueueSources: [...]` opt — additional file paths. Per-call override.
-3. `~/.thebird/config.json` `chains` key — backward compat.
-4. `queuesMap` opt — in-memory `{<name>: [...]}` merged last (highest priority).
+1. `process.env.ACPTOAPI_QUEUES` or `~/.acptoapi/queues.json`  - primary store. JSON `{queues: {<name>: [<model>, ...]}}` or flat `{<name>: [...]}`.
+2. `extraQueueSources: [...]` opt  - additional file paths. Per-call override.
+3. `~/.thebird/config.json` `chains` key  - backward compat.
+4. `queuesMap` opt  - in-memory `{<name>: [...]}` merged last (highest priority).
 
-Server-level injection: `createServer({queuesProvider: () => ({...})})` — provider function called per-request, merged into `/v1/models` queue rows and `/v1/queues`.
+Server-level injection: `createServer({queuesProvider: () => ({...})})`  - provider function called per-request, merged into `/v1/models` queue rows and `/v1/queues`.
 
 ### Chain semantics
 
 `api.chat({model: 'a,b,c', messages, onFallback})`:
 - Each link tried in order.
-- Before invocation, `sampler.isAvailable(prefix)` consulted — if backoff-blocked, link is skipped without an attempt (reason `sampler_backoff`).
+- Before invocation, `sampler.isAvailable(prefix)` consulted  - if backoff-blocked, link is skipped without an attempt (reason `sampler_backoff`).
 - If `opts.matrixSource` is set (file path, URL, or function returning `{providers: [{id, models: [{id, usable_in_any_mode, modes}]}]}`), cells with `ok:false` for any mode are demoted to the END of the chain. `matrix_block` reason if encountered.
 - On link failure (`error`/`rate_limit`/`timeout`/`empty`/`content_policy`), `onFallback({from, to, reason, error})` fires, chain advances.
-- **`sampler.markFailed(prefix)` is NOT called when the next link shares the same prefix** — preserves "bad model id, try sibling" without triggering full provider backoff.
+- **`sampler.markFailed(prefix)` is NOT called when the next link shares the same prefix**  - preserves "bad model id, try sibling" without triggering full provider backoff.
 - On exhaustion, throws with `err.chainHistory` and `err.attempted` populated.
 
 ### Inspection helpers
 
-- `chain([...]).peekNext(n)` — returns next-N candidates `[{index, model, prefix, fallbackOn, blocked, reason}]` after sampler+matrix filtering. For dashboard "next-up" UI.
-- `sampler.peekStatus(provider)` — `{available, lastFailedAt, nextRetryAt, failCount}`.
-- `getRunHistory()` — per-invocation entries `{ts, requestedModel, resolvedLinks, attempted, finalModel, history, ...}`.
-- `listAllModelsAndQueues({matrixSource, queueSources, queuesMap})` — OpenAI-models-shape rows mixing `{id, object:'model'}` and `{id:'queue/<name>', object:'queue', links}`.
+- `chain([...]).peekNext(n)`  - returns next-N candidates `[{index, model, prefix, fallbackOn, blocked, reason}]` after sampler+matrix filtering. For dashboard "next-up" UI.
+- `sampler.peekStatus(provider)`  - `{available, lastFailedAt, nextRetryAt, failCount}`.
+- `getRunHistory()`  - per-invocation entries `{ts, requestedModel, resolvedLinks, attempted, finalModel, history, ...}`.
+- `listAllModelsAndQueues({matrixSource, queueSources, queuesMap})`  - OpenAI-models-shape rows mixing `{id, object:'model'}` and `{id:'queue/<name>', object:'queue', links}`.
 
 ### HTTP surface
 
-- `GET /v1/models` — includes `{id: 'queue/<name>', object: 'queue', queue_links: [...], source}` rows.
-- `GET /v1/queues` — `{queues: [{name, links, source}]}`.
-- `GET /v1/sampler/status` — `{status: [{provider, ok, failCount, nextCheckIn}]}`.
-- `GET /v1/runs` — `{runs: [...]}` — chain run history.
+- `GET /v1/models`  - includes `{id: 'queue/<name>', object: 'queue', queue_links: [...], source}` rows.
+- `GET /v1/queues`  - `{queues: [{name, links, source}]}`.
+- `GET /v1/sampler/status`  - `{status: [{provider, ok, failCount, nextCheckIn}]}`.
+- `GET /v1/runs`  - `{runs: [...]}`  - chain run history.
 
 ### openai-compat fix
 
-`api.chat({model: 'groq/...'})` (or any brand-prefix model id) now works in single-shot — previously the `from:'openai'` path stripped the `{url, apiKey, body}` carrier in `buildParams`. The fix conditionally drops `from` when `provider === 'openai-compat'`. If you see `Failed to parse URL from undefined`, you've imported an older acptoapi.
+`api.chat({model: 'groq/...'})` (or any brand-prefix model id) now works in single-shot  - previously the `from:'openai'` path stripped the `{url, apiKey, body}` carrier in `buildParams`. The fix conditionally drops `from` when `provider === 'openai-compat'`. If you see `Failed to parse URL from undefined`, you've imported an older acptoapi.
 
 ## Scope
 
-acptoapi does NOT spawn the local Claude Code CLI and does NOT read Claude Code session history. Both were removed (2026-05-21). Consumers that need Claude Code chat or JSONL history (e.g. agentgui) must depend on `@anthropic-ai/claude-code` and `ccsniff` directly. Also: gemini-cli OAuth path (`lib/cloud-generate.js`, `lib/oauth.js`, the `claude/` and `cloud/` prefixes) was removed in the same change — Google's gemini-cli is being discontinued upstream.
+acptoapi does NOT spawn the local Claude Code CLI and does NOT read Claude Code session history. Both were removed (2026-05-21). Consumers that need Claude Code chat or JSONL history (e.g. agentgui) must depend on `@anthropic-ai/claude-code` and `ccsniff` directly. Also: gemini-cli OAuth path (`lib/cloud-generate.js`, `lib/oauth.js`, the `claude/` and `cloud/` prefixes) was removed in the same change  - Google's gemini-cli is being discontinued upstream.
 
 ## Protocol Bridge Architecture (2026-04-25 expansion)
 
@@ -95,15 +95,15 @@ Any (from, to, provider) triple works. Transform happens mid-pipeline.
 ### New Server Endpoints (lib/server.js)
 
 **SDK drop-in compatibility:**
-- POST /v1/messages — Anthropic SDK target
-- POST /v1beta/models/:model:streamGenerateContent — Gemini streaming
-- POST /v1beta/models/:model:generateContent — Gemini non-streaming
-- GET /v1beta/models — Gemini model list
+- POST /v1/messages  - Anthropic SDK target
+- POST /v1beta/models/:model:streamGenerateContent  - Gemini streaming
+- POST /v1beta/models/:model:generateContent  - Gemini non-streaming
+- GET /v1beta/models  - Gemini model list
 
 **Observability:**
-- GET /debug/providers — List configured providers
-- GET /debug/config — Runtime config dump
-- POST /debug/translate — Test translate(from, to, provider)
+- GET /debug/providers  - List configured providers
+- GET /debug/config  - Runtime config dump
+- POST /debug/translate  - Test translate(from, to, provider)
 
 Use /debug/translate to troubleshoot any format/provider combination before integrating.
 
@@ -132,22 +132,22 @@ When translating between formats, preserve reasoning blocks if both source and t
 Every provider envKey (e.g. `GROQ_API_KEY`) accepts N keys seamlessly:
 
 - Primary: `GROQ_API_KEY`
-- Additional: `GROQ_API_KEY_1` … `GROQ_API_KEY_99` (each contributes one key, in declared order, deduped)
+- Additional: `GROQ_API_KEY_1` ... `GROQ_API_KEY_99` (each contributes one key, in declared order, deduped)
 - Escape hatch: `ACPTOAPI_KEYS_GROQ_API_KEY=["key-a","key-b"]` (JSON array)
 
-`lib/keyring.js` is the single source of truth — `getKey(envKey)` returns the first usable key (skipping cooldown-blocked ones); `listUsable(envKey)` returns all currently-usable keys in declared order; `markKeyFailed(envKey, key, reason)` records a per-key backoff with steps `[30s, 60s, 2m, 4m, 8m]` mirroring `lib/sampler.js`. Classification: 401/403 -> `auth`, 429 -> `rate_limit`, 5xx -> `upstream_5xx` (not backoff-worthy; provider issue not key issue).
+`lib/keyring.js` is the single source of truth  - `getKey(envKey)` returns the first usable key (skipping cooldown-blocked ones); `listUsable(envKey)` returns all currently-usable keys in declared order; `markKeyFailed(envKey, key, reason)` records a per-key backoff with steps `[30s, 60s, 2m, 4m, 8m]` mirroring `lib/sampler.js`. Classification: 401/403 -> `auth`, 429 -> `rate_limit`, 5xx -> `upstream_5xx` (not backoff-worthy; provider issue not key issue).
 
 `handleBrandChat` and `handleEmbeddings` in `lib/server.js` rotate keys inline on `auth`/`rate_limit` responses, only falling through to the next chain link after every key for the provider is exhausted. Server log emits `[acptoapi] key-rotate provider=<name> reason=<r> key-index=<i> next-index=<i+1>` on each rotation.
 
-Direct `process.env[envKey]` reads outside `lib/keyring.js` are forbidden for known provider keys — all consumers (sdk.js, server.js, passthrough.js, media-passthrough.js, auto-chain.js, model-resolver.js, model-probe-live.js) route through the keyring.
+Direct `process.env[envKey]` reads outside `lib/keyring.js` are forbidden for known provider keys  - all consumers (sdk.js, server.js, passthrough.js, media-passthrough.js, auto-chain.js, model-resolver.js, model-probe-live.js) route through the keyring.
 
-**Observability:** `GET /v1/keyring/status` returns `{providers: [{provider, envKey, keys: [{index, key (masked: 'prefix…suffix'), ok, failCount, lastFailedAt, lastReason, inBackoff, nextRetryInMs}]}]}`.
+**Observability:** `GET /v1/keyring/status` returns `{providers: [{provider, envKey, keys: [{index, key (masked: 'prefix...suffix'), ok, failCount, lastFailedAt, lastReason, inBackoff, nextRetryInMs}]}]}`.
 
-Witness (2026-05-19): with `GROQ_API_KEY=<bad>` + `GROQ_API_KEY_2=<real>`, POST `/v1/chat/completions model=groq/llama-3.3-70b-versatile` returned 200 with assistant content; server log shows the bad key got marked `auth` failed and the real key served the response — no provider fallback triggered.
+Witness (2026-05-19): with `GROQ_API_KEY=<bad>` + `GROQ_API_KEY_2=<real>`, POST `/v1/chat/completions model=groq/llama-3.3-70b-versatile` returned 200 with assistant content; server log shows the bad key got marked `auth` failed and the real key served the response  - no provider fallback triggered.
 
-## ACP Daemons — 10 Agents (lib/acp-launcher.js)
+## ACP Daemons  - 10 Agents (lib/acp-launcher.js)
 
-acptoapi spawns and manages ACP (Agent Client Protocol) daemons — local agent processes that listen on defined ports and communicate via JSON-RPC over stdio. Ten daemons are auto-launched on boot via `ensureRunning()`:
+acptoapi spawns and manages ACP (Agent Client Protocol) daemons  - local agent processes that listen on defined ports and communicate via JSON-RPC over stdio. Ten daemons are auto-launched on boot via `ensureRunning()`:
 
 - **Kilo** (port 4780, `kilo/openrouter/free`)
   - Official: https://github.com/kilo-language/kilo-code
@@ -234,8 +234,8 @@ registerDaemon('my-daemon', 9999, [
 ]);
 ```
 
-- `registerBackend()` — adds to `BACKENDS` global, updates `splitModel()` regex
-- `registerDaemon()` — adds to `CMDS` global, enrolled in `ensureRunning()` boot sequence
+- `registerBackend()`  - adds to `BACKENDS` global, updates `splitModel()` regex
+- `registerDaemon()`  - adds to `CMDS` global, enrolled in `ensureRunning()` boot sequence
 - New backends automatically appear in `GET /debug/providers` and chain fallback rankings
 
 ### Health Check
@@ -297,7 +297,7 @@ Pass `model: 'auto'` to the Anthropic-compat endpoint to trigger auto-chain rout
 | perplexity | PERPLEXITY_API_KEY |
 | fireworks | FIREWORKS_API_KEY |
 
-Cloudflare URL is dynamic: `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/v1/chat/completions` — `CLOUDFLARE_ACCOUNT_ID` is required alongside `CLOUDFLARE_API_KEY`.
+Cloudflare URL is dynamic: `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/v1/chat/completions`  - `CLOUDFLARE_ACCOUNT_ID` is required alongside `CLOUDFLARE_API_KEY`.
 
 ## Brand Routing (HTTP Passthrough Pattern)
 
@@ -312,7 +312,7 @@ Mapping raw request bodies through `translate()` requires converting to canonica
 - **Dispatch table**: `lib/openai-brands.js` maps prefix -> vendor URL + env key
 - **Detection**: `splitBrandModel(model)` regex `/^([a-z0-9-]+)\/(.+)$/` extracts prefix and model name; `isBrand(prefix)` validates
 - **Handling**: `lib/server.js` `handleBrandChat()` fetches upstream, streams body through unchanged
-- **API coverage**: Applies to chat, embeddings (`POST /v1/embeddings`), and token counting (`POST /v1/messages/count_tokens` — heuristic: length / 4)
+- **API coverage**: Applies to chat, embeddings (`POST /v1/embeddings`), and token counting (`POST /v1/messages/count_tokens`  - heuristic: length / 4)
 - **Function URLs**: `getBrand(prefix)` resolves function-valued URLs at call time (e.g., Cloudflare dynamic account URL)
 
 ## Testing: No Mocks, Only Real Backends
@@ -335,7 +335,7 @@ Rationale: User design requirement. Only real content validates the bridge's cor
 
 The `.app-main a` descendant rule has higher CSS specificity than `.btn-primary` (descendant combinator + element selector vs single class). This causes generic anchor styles to override button colors, rendering buttons invisible when text and background are both the same accent color.
 
-**Symptom**: "Try it live" button disappears—mint text on mint background. Witness via `getComputedStyle(element).color` on docs server.
+**Symptom**: "Try it live" button disappears - mint text on mint background. Witness via `getComputedStyle(element).color` on docs server.
 
 **Fix**: Scope the descendant anchor rule with `:not()` pseudo-class to exclude button components:
 ```css
@@ -351,7 +351,7 @@ The `.app-main a` descendant rule has higher CSS specificity than `.btn-primary`
 Chain fallback is driven by **xstate v5 FSM** (`lib/chain-machine.js`), not a linear retry loop. Non-obvious aspects:
 
 - **State machine**: `setup({}).createMachine(...)` defines states `trying`, `done`, `exhausted` and events `SUCCESS` and `FALLBACK { reason, error }`. Actors are created via `createActor(machine)` and pumped by async drivers (`runStream`/`runChat`).
-- **Run history**: `getRunHistory()` subscribes to actor snapshots and returns the last 50 runs. This is NOT a log file or array — it's a live stream of FSM state transitions.
+- **Run history**: `getRunHistory()` subscribes to actor snapshots and returns the last 50 runs. This is NOT a log file or array  - it's a live stream of FSM state transitions.
 - **Fallback reasons**: Canonical set is `['error', 'timeout', 'rate_limit', 'empty', 'content_policy']`. Default `fallbackOn = ['error']` means other reasons are terminal.
 - **SDK integration**: `chat`/`stream` methods in `lib/sdk.js` early-branch on `model: 'chain/<name>'` and delegate to `lib/chain.js`. Old `streamChain`/`chatChain` now wrap the chain builder.
 - **Config-driven chains**: Named chains (e.g., `chain('fallback-to-gemini')`) resolve links via `loadConfig().chains`. `--list-chains` CLI flag and `GET /debug/chains` enumerate defined and recent chains.
@@ -365,11 +365,11 @@ Persistent test server at c:\dev\nim (copy of .env, start.bat launcher script):
 - **Probe pattern** (run from c:\dev\test): Set ANTHROPIC_BASE_URL=http://127.0.0.1:4900, ANTHROPIC_AUTH_TOKEN=theultimateflex, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1, then invoke `claude -p "<prompt>" --output-format stream-json --verbose --include-partial-messages --debug`.
 - **Auto-chain routing**: Bare `claude-*` model names from CLI route through auto-chain (first link defaults to groq/llama-3.3-70b-versatile with current .env keys).
 - **Health check**: `curl http://127.0.0.1:4900/health` returns 200 with backends list. Confirms server is up.
-- **Daemon launch**: Do NOT use `nohup cmd //c start.bat &` from bash — leaves a dead shell. Instead use Node `spawn({ detached: true, stdio: ['ignore', fileHandle, fileHandle] })` for a real persistent daemon.
+- **Daemon launch**: Do NOT use `nohup cmd //c start.bat &` from bash  - leaves a dead shell. Instead use Node `spawn({ detached: true, stdio: ['ignore', fileHandle, fileHandle] })` for a real persistent daemon.
 
 ## model-resolver.js + dynamic defaults (2026-05-12)
 
-`lib/model-resolver.js` resolves a `<provider>/<model>` string to `{provider, model, env, url}`. `PROVIDER_KEYS` (env var per provider) and `PROVIDER_DEFAULTS` (default model per provider) are exported from `lib/provider-maps.js` and re-exported from `acptoapi` root. Freddie consumes both via `createRequire(import.meta.url)` in `src/agent/llm_resolver.js` — single source of truth for the 17 supported providers (anthropic, openai, groq, google, mistral, cerebras, nvidia, openrouter, sambanova, codestral, zai, qwen, cloudflare, opencode, kilo, claude-cli, ollama).
+`lib/model-resolver.js` resolves a `<provider>/<model>` string to `{provider, model, env, url}`. `PROVIDER_KEYS` (env var per provider) and `PROVIDER_DEFAULTS` (default model per provider) are exported from `lib/provider-maps.js` and re-exported from `acptoapi` root. Freddie consumes both via `createRequire(import.meta.url)` in `src/agent/llm_resolver.js`  - single source of truth for the 17 supported providers (anthropic, openai, groq, google, mistral, cerebras, nvidia, openrouter, sambanova, codestral, zai, qwen, cloudflare, opencode, kilo, claude-cli, ollama).
 
 Default model selection: if caller passes only `provider`, resolver fills in `PROVIDER_DEFAULTS[provider]`. Updates to the defaults table land in this repo, propagate to freddie on next `npm install` (or `node scripts/sync-upstream.mjs`).
 
@@ -382,43 +382,197 @@ Kilo + opencode ACP daemons speak the same protocol (SSE event stream + REST ses
 `lib/model-probe-live.js` enumerates each configured provider's `/models` endpoint, chat-probes up to `ACPTOAPI_PROBE_CAP` (default 100) models per provider with a 1-token request, and caches the working set sorted by latency. `handleAnthropicMessages` auto-uses this chain whenever `isFresh()` is true; otherwise it kicks off the probe in the background and uses the static `buildAutoChain` for the current request.
 
 Knobs:
-- `ACPTOAPI_LIVE_PROBE=1` — force live chain even on cold cache (per-request via header `x-live-probe: 1`).
-- `ACPTOAPI_DISABLE_PROBE=1` — disable startup background probe entirely.
-- `ACPTOAPI_PROBE_CAP=N` — max models per provider (default 100).
-- `ACPTOAPI_PROBE_CONCURRENCY=N` — bounded in-flight chat-probes (default 12).
-- `ACPTOAPI_PROBE_TTL_MS=N` — in-memory and on-disk TTL (default 10min).
-- `ACPTOAPI_PROBE_CACHE_PATH=<file>` — defaults to `~/.acptoapi/probe-cache.json`; persists across reboots so cold `bunx` invocations skip the 30–60s warmup.
-- `ACPTOAPI_PROBE_OLLAMA=1` — include local ollama in the probe even without `OLLAMA_URL` set.
+- `ACPTOAPI_LIVE_PROBE=1`  - force live chain even on cold cache (per-request via header `x-live-probe: 1`).
+- `ACPTOAPI_DISABLE_PROBE=1`  - disable startup background probe entirely.
+- `ACPTOAPI_PROBE_CAP=N`  - max models per provider (default 100).
+- `ACPTOAPI_PROBE_CONCURRENCY=N`  - bounded in-flight chat-probes (default 12).
+- `ACPTOAPI_PROBE_TTL_MS=N`  - in-memory and on-disk TTL (default 10min).
+- `ACPTOAPI_PROBE_CACHE_PATH=<file>`  - defaults to `~/.acptoapi/probe-cache.json`; persists across reboots so cold `bunx` invocations skip the 30-60s warmup.
+- `ACPTOAPI_PROBE_OLLAMA=1`  - include local ollama in the probe even without `OLLAMA_URL` set.
 
-Probe covers brand providers (groq, openrouter, …) plus anthropic, gemini, ollama when their env keys are present. Each model gets one billable token charged on first probe (and once per TTL window). Disable with `ACPTOAPI_DISABLE_PROBE=1` if cost is a concern.
+Probe covers brand providers (groq, openrouter, ...) plus anthropic, gemini, ollama when their env keys are present. Each model gets one billable token charged on first probe (and once per TTL window). Disable with `ACPTOAPI_DISABLE_PROBE=1` if cost is a concern.
 
 Endpoints:
-- `GET /debug/probe-live[?force=1]` — list working models, the chain, and probe activity log.
-- `GET /v1/chains` — list built-in + runtime named chains with their resolved links.
-- `POST /v1/chains` body `{name, links: [...]}` — register a runtime chain.
-- `DELETE /v1/chains?name=<name>` — remove a runtime chain.
+- `GET /debug/probe-live[?force=1]`  - list working models, the chain, and probe activity log.
+- `GET /v1/chains`  - list built-in + runtime named chains with their resolved links.
+- `POST /v1/chains` body `{name, links: [...]}`  - register a runtime chain.
+- `DELETE /v1/chains?name=<name>`  - remove a runtime chain.
 
 ## Named chain selection (2026-05-13)
 
 Caller sends `model: <chain-name>` in `/v1/messages` (or `/v1/chat/completions`). Resolution order: runtime registry (`~/.acptoapi/chains.json` + `ACPTOAPI_CHAINS` env JSON + `POST /v1/chains`) -> built-in (`fast`, `cheap`, `smart`, `reasoning`, `free`, `local`). Unrecognized name falls through to default auto-chain so any caller-supplied model that isn't a chain still works.
 
 Built-ins in `lib/named-chains.js`:
-- `fast` — groq llama 3.3-70b -> groq 3.1-8b -> cerebras 3.3-70b
-- `cheap` — openrouter gemini flash-lite -> groq 3.1-8b -> mistral-tiny
-- `smart` — anthropic sonnet-4-6 -> openrouter claude-sonnet-4.6 -> mistral-large
-- `reasoning` — openrouter deepseek-v4-pro -> sambanova DeepSeek-V3.2 -> nvidia nemotron-3-nano-reasoning
-- `free` — groq llama-4-scout -> openrouter/free -> google gemini-2.5-flash -> kilo/openrouter free -> opencode/minimax free
-- `hermes-free` — ordered free models for Hermes Agent (per remoteopenclaw.com best-free-models-for-hermes): free online APIs best-first (groq llama-4-scout -> openrouter/free -> google gemini-2.5-flash) then no-key ACP daemons (kilo/openrouter free -> opencode/minimax free -> hermes-agent/hermes-3-70b)
-- `local` — ollama llama3.2 -> kilo/openrouter free -> opencode/minimax free
+- `fast`  - groq llama 3.3-70b -> groq 3.1-8b -> cerebras 3.3-70b
+- `cheap`  - openrouter gemini flash-lite -> groq 3.1-8b -> mistral-tiny
+- `smart`  - anthropic sonnet-4-6 -> openrouter claude-sonnet-4.6 -> mistral-large
+- `reasoning`  - openrouter deepseek-v4-pro -> sambanova DeepSeek-V3.2 -> nvidia nemotron-3-nano-reasoning
+- `free`  - groq llama-4-scout -> openrouter/free -> google gemini-2.5-flash -> kilo/openrouter free -> opencode/minimax free
+- `hermes-free`  - ordered free models for Hermes Agent (per remoteopenclaw.com best-free-models-for-hermes): free online APIs best-first (groq llama-4-scout -> openrouter/free -> google gemini-2.5-flash) then no-key ACP daemons (kilo/openrouter free -> opencode/minimax free -> hermes-agent/hermes-3-70b)
+- `local`  - ollama llama3.2 -> kilo/openrouter free -> opencode/minimax free
 
 ## ACP auto-launch (2026-05-13)
 
-`lib/acp-launcher.js` probes `:4780` (kilo) and `:4790` (opencode) at server boot. If down, tries an ordered list of spawn commands per daemon: bare binary, subcommand, npx, bunx. Override the entire attempt list with `KILO_ACP_CMD=…` / `OPENCODE_ACP_CMD=…` (shell string). `ACPTOAPI_DISABLE_ACP_AUTOLAUNCH=1` opts out.
+`lib/acp-launcher.js` probes `:4780` (kilo) and `:4790` (opencode) at server boot. If down, tries an ordered list of spawn commands per daemon: bare binary, subcommand, npx, bunx. Override the entire attempt list with `KILO_ACP_CMD=...` / `OPENCODE_ACP_CMD=...` (shell string). `ACPTOAPI_DISABLE_ACP_AUTOLAUNCH=1` opts out.
 
-Each attempt is given 600ms to fail-fast (ENOENT, immediate exit) before moving to the next. The chain treats kilo + opencode as the second-to-last fallback before the claude CLI. If both daemons fail to launch, the chain still tries the links — they just return "fetch failed" quickly and fall through.
+Each attempt is given 600ms to fail-fast (ENOENT, immediate exit) before moving to the next. The chain treats kilo + opencode as the second-to-last fallback before the claude CLI. If both daemons fail to launch, the chain still tries the links  - they just return "fetch failed" quickly and fall through.
 
 ## Default fallback order (2026-05-13)
 
 `lib/auto-chain.js` DEFAULT_ORDER = `anthropic, openrouter, groq, nvidia, cerebras, sambanova, mistral, codestral, qwen, zai, cloudflare, gemini, opencode-zen, ollama, kilo, opencode, claude`. `claude` (CLI) is always last. `kilo`/`opencode` (ACP daemons) come before `claude`. Direct API providers fill the head of the chain in priority order (env-key presence required). Override the whole order with `PROVIDER_ORDER=a,b,c`.
+
+## Error Classification  - fallback reasons (lib/chain-machine.js, lib/sampler.js, lib/keyring.js)
+
+Chain fallback is reason-driven. `lib/chain-machine.js` is the single source of truth for which failures advance the chain vs. surface to the caller.
+
+### Canonical reason set
+
+`FALLBACK_REASONS` (chain-machine.js:4) = `['error', 'timeout', 'rate_limit', 'empty', 'content_policy', 'sampler_backoff', 'matrix_block', 'auth', 'fetch_failed']`.
+
+`classifyError(err)` (chain-machine.js:6) maps a thrown error to a reason:
+- `err.code === 'RATE_LIMIT'` or message matches `/rate.?limit|429|quota/i` -> `rate_limit`
+- `err.code === 'AUTH'` or message matches `/401|403|invalid api key|unauthorized/i` -> `auth`
+- `err.code === 'FETCH_FAILED'` or message matches `/fetch failed|ECONNREFUSED|ENOTFOUND|ETIMEDOUT/i` -> `fetch_failed`
+- `err.code === 'TIMEOUT'` or message matches `/timeout|timed out/i` -> `timeout`
+- message matches `/content.?policy|safety|blocked/i` -> `content_policy`
+- anything else -> `error`
+
+`sampler_backoff` and `matrix_block` are NOT produced by `classifyError`; they come from `preCheck()` (chain-machine.js:40) **before** a link is invoked  - `sampler_backoff` when `sampler.isAvailable(prefix)` is false, `matrix_block` when the matrix scores the cell `ok:false`. `empty` is synthesized post-call when a finished response yielded no text/tool-call (`isEmptyResult`, chain-machine.js:272).
+
+### Terminal vs. trigger-next-link
+
+`shouldFallback(reason, fallbackOn)` (chain-machine.js:21) decides. **When a link has no explicit `fallbackOn`, the default is the FULL `FALLBACK_REASONS` set**  - every reason advances the chain, so a `rate_limit`/`auth`/`timeout`/`content_policy` is never surfaced to the caller as long as another link remains. Only when a caller explicitly narrows `fallbackOn` (e.g. `['error']`) do the omitted reasons become terminal (the error is rethrown immediately).
+
+- Built-in named chains (`lib/named-chains.js:15`) pin `fallbackOn = ['error', 'rate_limit', 'timeout', 'empty']` per link  - `auth`/`content_policy`/`fetch_failed` are terminal for those chains.
+- `buildAutoChain` links pin `['error','rate_limit','timeout','empty']` likewise.
+- On exhaustion the last error is rethrown with `err.chainHistory` (per-link `{model, reason, error}`) and `err.attempted` (per-link `{model, ms, ok, reason}`) populated.
+
+### Sampler backoff strategy (lib/sampler.js)
+
+Per-**provider-prefix** (not per-model, not per-key) circuit breaker. `BACKOFF_STEPS_MS = [30000, 60000, 120000, 240000, 480000]` (30s -> 1m -> 2m -> 4m -> 8m, capped). `markFailed(prefix)` increments `failCount` and sets `nextCheck = now + STEPS[min(failCount-1, 4)]`. While `nextCheck > now`, `isAvailable(prefix)` returns false -> `preCheck` blocks the link with reason `sampler_backoff` (no upstream call made). `markOk(prefix)` resets `failCount`/`nextCheck`/`lastFailedAt` to clean.
+
+**Critical sibling rule** (chain-machine.js:178, :259): `sampler.markFailed(prefix)` is called on a link failure ONLY when `prefix !== nextPrefix` AND `reason !== 'error'`. If the next link shares the same provider prefix (e.g. a bad model id followed by a sibling model on the same provider), the provider is NOT marked failed  - preserves "try a sibling model" without tripping full-provider backoff. A bare `error` reason also never trips the sampler (only the categorized transient reasons do). On link success, `markOk(prefix)` clears the breaker.
+
+The background sampler (`startSampler`, default interval 3600000ms = 1h) re-probes providers whose `nextCheck` has elapsed; `if (interval.unref)` so it never holds the process open.
+
+### Rate-limit handling and key rotation (lib/keyring.js)
+
+Two layers, distinct granularity:
+
+1. **Provider-level** (sampler): a `rate_limit` failure trips the prefix breaker per the sibling rule above, demoting the whole provider for the backoff window.
+2. **Key-level** (keyring, per `(envKey, key)`): `handleBrandChat`/`handleEmbeddings` rotate keys INLINE before falling to the next chain link. `keyring.classify(status)` (keyring.js:137): `401|403 -> auth`, `429 -> rate_limit`, `>=500 -> upstream_5xx`. **`upstream_5xx` is deliberately NOT backoff-worthy**  - a 5xx is the provider's fault, not the key's, so the key is not penalized. `markKeyFailed` applies the same `[30s,60s,2m,4m,8m]` per-key backoff for `auth`/`rate_limit`.
+
+**Key rotation order**: `listUsable(envKey)` returns keys in DECLARED order (`GROQ_API_KEY`, then `_1`.._99`, then the `ACPTOAPI_KEYS_<NAME>` JSON-array escape hatch), filtering out any key currently in backoff. `getKey(envKey)` returns the first usable key, or  - when ALL keys are in backoff  - the one whose backoff expires soonest (so callers attempt rather than hard-fail). Server log emits `[acptoapi] key-rotate provider=<name> reason=<r> key-index=<i> next-index=<i+1>` on each rotation. Only after every key for a provider is exhausted does the chain fall through to the next link.
+
+### Content policy behavior
+
+`content_policy` (message matches `/content.?policy|safety|blocked/i`) is a first-class reason. It does NOT trip the sampler breaker by default (it is not in the per-link `fallbackOn` of built-in chains, so for those it is terminal). For chains using the default full `FALLBACK_REASONS`, a content-policy refusal advances to the next link  - useful when one provider's safety filter rejects a prompt another provider accepts. It is never silently swallowed: it lands in `chainHistory` with `reason: 'content_policy'`.
+
+## Configuration  - ~/.acptoapi directory + env vars
+
+### ~/.acptoapi/ directory structure
+
+All config files live under `~/.acptoapi/` (`os.homedir()`), each independently overridable by env var.
+
+| File | Loader | Override env | Format |
+|------|--------|-------------|--------|
+| `config.json` | lib/config.js:21 | `ACPTOAPI_CONFIG` (then `THEBIRD_CONFIG` -> `~/.thebird/config.json`) | `{ "chains": { "<name>": [...] }, ... }`. Values support `${ENV_VAR}` / `$ENV_VAR` interpolation (config.js:5). Powers `chain/<name>` and `queue/<name>` backward-compat resolution. |
+| `queues.json` | lib/queues.js:6 | `ACPTOAPI_QUEUES` | `{ "queues": { "<name>": ["model/a", "model/b"] } }` OR flat `{ "<name>": [...] }`. Entries may be strings or `{model, fallbackOn, timeout}` objects. |
+| `chains.json` | lib/named-chains.js:40 | `ACPTOAPI_CHAINS_PATH` | `{ "<name>": ["model/a", "model/b", ...] }`  - runtime named chains, merged OVER built-ins. |
+| `probe-cache.json` | lib/model-probe-live.js:20 | `ACPTOAPI_PROBE_CACHE_PATH` | `{ "<provider/model>": { ok: bool, ts: <ms> } }`  - live-probe working set, persists across reboots so cold `bunx` invocations skip warmup. |
+| `acp-probe-cache.json` | lib/auto-chain.js:248 | `ACPTOAPI_ACP_PROBE_CACHE` | `{ "<daemon>": { ok, ts } }`  - ACP daemon reachability cache (24h TTL default). |
+
+### Resolution precedence
+
+- **Queues** (lib/queues.js `loadAllSources`): `ACPTOAPI_QUEUES`/`queues.json` -> `extraQueueSources: [...]` per-call paths -> `~/.acptoapi/config.json` `chains` key -> in-memory `queuesMap` (last write wins). Later sources override earlier ones for the same name.
+- **Named chains** (lib/named-chains.js `resolveChain`): runtime registry (`chains.json` + `ACPTOAPI_CHAINS` env JSON + `POST /v1/chains`) -> built-ins (`fast`, `cheap`, `smart`, `reasoning`, `free`, `hermes-free`, `local`). Unrecognized name falls through to the auto-chain, so any caller `model` that isn't a chain still routes.
+
+### Environment variables
+
+**Config paths**: `ACPTOAPI_CONFIG`, `THEBIRD_CONFIG`, `ACPTOAPI_QUEUES`, `ACPTOAPI_CHAINS` (inline JSON), `ACPTOAPI_CHAINS_PATH`, `ACPTOAPI_PROBE_CACHE_PATH`, `ACPTOAPI_ACP_PROBE_CACHE`.
+
+**Live probe** (lib/model-probe-live.js): `ACPTOAPI_LIVE_PROBE=1` (force live chain on cold cache; per-request via `x-live-probe: 1` header), `ACPTOAPI_DISABLE_PROBE=1` (disable startup background probe), `ACPTOAPI_PROBE_CAP=N` (max models/provider, default 100), `ACPTOAPI_PROBE_CONCURRENCY=N` (in-flight probes, default 12), `ACPTOAPI_PROBE_TTL_MS=N` (default 600000 = 10min), `ACPTOAPI_PROBE_OLLAMA=1` (include local ollama), `ACPTOAPI_ACP_PROBE_TTL_MS=N` (ACP cache TTL, default 86400000 = 24h), `ACPTOAPI_PROBE_INTERVAL_MS=N` (sampler interval, default 3600000 = 1h).
+
+**Routing**: `PROVIDER_ORDER=a,b,c` (override auto-chain priority order; only env-keyed providers appear).
+
+**Daemon spawn overrides** (shell strings, lib/acp-launcher.js): `KILO_ACP_CMD`, `OPENCODE_ACP_CMD`, `QWEN_CODE_ACP_CMD`, `CODEX_CLI_ACP_CMD`, `COPILOT_CLI_ACP_CMD`, `CLINE_ACP_CMD`, `HERMES_ACP_CMD`, `CURSOR_ACP_CMD`, `CODEIUM_ACP_CMD`, `ACP_CLI_CMD`. Opt out of all autolaunch with `ACPTOAPI_DISABLE_ACP_AUTOLAUNCH=1`.
+
+**Provider keys** (lib/keyring.js  - multi-key): primary `<PROVIDER>_API_KEY`, additional `<PROVIDER>_API_KEY_1`..`_99`, JSON-array escape hatch `ACPTOAPI_KEYS_<ENVKEY>=["k1","k2"]`. See the Multi-key section above for the full provider->envKey table.
+
+**Server**: `PORT` (default 4800; `--port` flag wins), `ACPTOAPI_API_KEY` (auth token), `OLLAMA_URL` (default `http://localhost:11434`), `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_REGION`/`AWS_SESSION_TOKEN` (bedrock).
+
+### How to add a custom queue / override defaults
+
+Add a queue (no restart needed for file-based; re-read per request):
+```bash
+mkdir -p ~/.acptoapi
+cat > ~/.acptoapi/queues.json <<'EOF'
+{ "queues": { "myqueue": ["groq/llama-3.3-70b-versatile", "mistral/mistral-tiny", "kilo/openrouter/free"] } }
+EOF
+# then call with model: "queue/myqueue"
+```
+
+Register a runtime chain over HTTP (lives until process exit unless also persisted to chains.json):
+```bash
+curl -X POST http://127.0.0.1:4800/v1/chains \
+  -H 'content-type: application/json' \
+  -d '{"name":"mychain","links":["groq/llama-4-scout","openrouter/free"]}'
+```
+
+Override the auto-chain provider priority: `PROVIDER_ORDER=groq,nvidia,anthropic`. Override a single daemon's launch: `KILO_ACP_CMD='npx -y kilo-code-cli acp'`. Override a default model per provider: edit `PROVIDER_DEFAULTS` in `lib/provider-maps.js` (single source of truth, propagates to downstream consumers on `npm install`).
+
+## Observability  - debug endpoints, schemas, CLI
+
+Default base `http://127.0.0.1:4800` (set by `--port`/`PORT`). All endpoints are GET unless noted. `/health`, `/metrics`, `/`, `/demo*` and the static assets are public; everything else requires the `ACPTOAPI_API_KEY` bearer/`x-api-key` when configured.
+
+### Endpoint reference
+
+| Endpoint | Returns |
+|----------|---------|
+| `GET /health` | `{ ok: true, backends: [<prefix>, ...] }`  - list of registered ACP backend prefixes (server.js:1010). Liveness probe. |
+| `GET /debug/providers` | Array `[{ name, status: 'ok'|'unreachable', latencyMs }]`  - live 2s reachability probe of each ACP daemon (server.js:1014). |
+| `GET /debug/auto-chain` | `{ links: [{model, fallbackOn}], order: [<provider>...], available: [<model>...] }`  - resolved auto-chain from current env (server.js:1061). |
+| `GET /debug/chains` | `{ defined: [{name, links, defaults}], recent: [<run>...] }`  - config-defined chains (from `~/.acptoapi/config.json` `chains`) + last 50 runs (server.js:1026). |
+| `GET /debug/probe-live[?force=1]` | `{ models: [...], chain: [<model>...], logs: [<str>...] }`  - live-probe working set + probe activity log (server.js:1065). |
+| `GET /debug/config` | Runtime config dump with provider keys REDACTED (server.js:1072). |
+| `POST /debug/translate` | Test a `{from, to, provider, ...params}` triple end-to-end (server.js:1152). |
+| `GET /v1/models` | OpenAI-models shape; mixes `{id, object:'model'}` and `{id:'queue/<name>', object:'queue', queue_links:[...], source}` rows (server.js:981). Dynamic  - driven by env config + ollama `/api/tags`; do NOT hardcode expected models. |
+| `GET /v1/queues` | `{ queues: [{name, links: [<model>...], source}] }`  - all resolved queues across sources (server.js:982). |
+| `GET /v1/chains` | `{ chains: {<name>: [<model>...]}, builtin: [...], runtime: [...] }`  - built-in + runtime named chains (server.js:1031). `POST` body `{name, links:[...]}` registers (201); `DELETE ?name=<n>` removes. |
+| `GET /v1/sampler/status` | `{ status: [{provider, ok, failCount, nextCheckIn}] }`  - per-provider circuit-breaker state; `nextCheckIn` is ms until the breaker re-opens (server.js:987). |
+| `GET /v1/runs` | `{ runs: [{ts, requestedModel, resolvedLinks, attempted, finalModel, history, state, servedBy, startedAt, finishedAt}] }`  - last 50 chain runs (server.js:1001). |
+| `GET /v1/keyring/status` | `{ providers: [{provider, envKey, keys: [{index, key (masked 'prefix...suffix'), ok, failCount, lastFailedAt, lastReason, inBackoff, nextRetryInMs}]}] }`  - per-key health (server.js:988). |
+| `GET /v1/cache/stats`, `POST /v1/cache/clear` | Response-cache stats / clear (server.js:1002). |
+| `GET /v1/pretest/stats`, `POST /v1/pretest/run` | Pretest stats / run-once (server.js:1004). |
+
+### Example curls
+
+```bash
+curl -s http://127.0.0.1:4800/health
+curl -s http://127.0.0.1:4800/v1/sampler/status | jq '.status[] | select(.ok==false)'   # providers in backoff
+curl -s http://127.0.0.1:4800/v1/keyring/status | jq '.providers[].keys[] | select(.inBackoff)'  # keys cooling down
+curl -s http://127.0.0.1:4800/v1/runs | jq '.runs[-1] | {requestedModel, finalModel, history}'  # last run's fallback path
+curl -s http://127.0.0.1:4800/debug/auto-chain | jq '.available'
+curl -s http://127.0.0.1:4800/debug/probe-live?force=1 | jq '.chain'
+curl -s -X POST http://127.0.0.1:4800/debug/translate -H 'content-type: application/json' \
+  -d '{"from":"openai","to":"anthropic","provider":"groq","model":"groq/llama-3.3-70b-versatile","messages":[{"role":"user","content":"hi"}]}'
+```
+
+### Field interpretation
+
+- `/v1/sampler/status` `nextCheckIn > 0` -> provider is in backoff and `preCheck` will skip it with reason `sampler_backoff` until it elapses. `ok: null` means never probed/failed.
+- `/v1/keyring/status` `nextRetryInMs > 0` (`inBackoff: true`) -> that specific key is cooling down; rotation will pick the next usable key. `lastReason` is `auth`/`rate_limit`/`upstream_5xx`.
+- `/v1/runs` `history[]` entries are `{model, reason, error}`  - the exact per-link reason chain. `attempted[]` (on the thrown error / `result.__chainAttempted`) carries `{model, ms, ok, reason}` for latency forensics. `finalModel`/`servedBy` is the link that succeeded (null if exhausted).
+- `/debug/providers` `status: 'unreachable'` means the ACP daemon at that port did not answer within 2s  - the chain still tries it but it fast-fails to the next link.
+
+### CLI reference (bin/acptoapi.js)
+
+- `acptoapi` (no flags)  - start the server (`--port N`, `--kilo <url>`, `--opencode <url>`).
+- `acptoapi --probe`  - print env-key presence per provider (`OK`/`--` per key) and exit.
+- `acptoapi --list-brands`  - list OpenAI-compat brand prefixes.
+- `acptoapi --list-chains`  - list config-defined named chains (`<name>: a -> b -> c`).
+- `acptoapi --update`  - clear npx/bun caches and report the latest npm version (forces fresh `bunx acptoapi@latest`).
+
+There is no separate TUI; the demo UI is served at `GET /` (`/demo`) with static assets (`app.js`, `app-shell.css`).
 
 @.gm/next-step.md

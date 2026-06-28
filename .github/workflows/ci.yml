@@ -12,7 +12,7 @@ jobs:
         run: |
           # Check every existing js entrypoint; tolerate optional ones missing.
           for f in lib/*.js bin/*.js; do node --check "$f"; done
-          [ -f test.js ] && node --check test.js || echo "(test.js absent — skipping)"
+          [ -f test.js ] && node --check test.js || echo "(test.js absent  - skipping)"
           node -e "import('./lib/server.js').then(m => console.log('import ok:', Object.keys(m)))"
           node -e "const c=require('./lib/response-cache'); const p=require('./lib/pretest'); const a=require('./lib/auto-chain'); if (typeof a.modelCapabilityTools!=='function') throw new Error('modelCapabilityTools missing'); console.log('modules ok:', {cache:!!c.wrap, pretest:!!p.start, capability:!!a.modelCapabilityTools});"
   publish:
@@ -30,7 +30,7 @@ jobs:
             echo "has_token=true" >> $GITHUB_OUTPUT
           else
             echo "has_token=false" >> $GITHUB_OUTPUT
-            echo "::notice::NPM_TOKEN not set — skipping publish"
+            echo "::notice::NPM_TOKEN not set  - skipping publish"
           fi
       - name: Bump patch version
         if: steps.check.outputs.has_token == 'true'

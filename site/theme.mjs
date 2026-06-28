@@ -1,5 +1,5 @@
 // AnEntrypoint design-system theme for flatspace.
-// Renders the full landing via the anentrypoint-design SDK — Topbar + Side
+// Renders the full landing via the anentrypoint-design SDK  - Topbar + Side
 // (sidebar bins / labels / more) + Crumb + main panels (hero, kits, desktop_os,
 // web_components, api_exports, decks, docs, previews, features, quickstart,
 // examples) + Status. No hand-rolled
@@ -55,7 +55,7 @@ function rowsFromItems(items, prefix) {
     code: it.code || String(i + 1).padStart(2, '0'),
     title: it.title || it.name,
     sub: it.sub || it.desc || '',
-    meta: it.cta || it.meta || 'open ↗',
+    meta: it.cta || it.meta || 'open',
     href: it.href || '#'
   }));
 }
@@ -106,7 +106,7 @@ function Previews() {
     code: String(i + 1).padStart(2, '0'),
     title: String(name).replace(/-/g, ' '),
     sub: 'preview - ' + name + '.html',
-    meta: 'open ↗',
+    meta: 'open',
     href: base + name + '.html'
   }));
   return C.Panel({
@@ -266,7 +266,7 @@ Promise.race([__fontsReady, new Promise(r => setTimeout(r, 1200))]).then(() => {
 `;
 
 const html = ({ site, nav, home }) => {
-  const title = `${escapeHtml(site.title)}${site.tagline ? ' — ' + escapeHtml(site.tagline) : ''}`;
+  const title = `${escapeHtml(site.title)}${site.tagline ? '  - ' + escapeHtml(site.tagline) : ''}`;
   const desc = escapeHtml(site.description || site.tagline || site.title);
   const url = escapeHtml(site.url || '');
   const image = escapeHtml(site.image || (site.url ? site.url.replace(/\/$/, '') + '/og-card.png' : ''));

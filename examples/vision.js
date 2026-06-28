@@ -1,5 +1,5 @@
 /**
- * vision.js — Image/vision understanding examples
+ * vision.js  - Image/vision understanding examples
  *
  * Demonstrates three ways to pass images:
  *   1. Base64 inline data (Anthropic SDK style)

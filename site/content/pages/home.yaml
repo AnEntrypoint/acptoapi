@@ -15,7 +15,7 @@ hero:
     - { label: "anthropic-compat" }
     - { label: "gemini-compat" }
   ctas:
-    - { label: "GitHub ↗", href: "https://github.com/AnEntrypoint/acptoapi", primary: true }
+    - { label: "GitHub", href: "https://github.com/AnEntrypoint/acptoapi", primary: true }
     - { label: "npm",      href: "https://www.npmjs.com/package/acptoapi" }
     - { label: "247420",   href: "https://247420.xyz" }
 
@@ -51,13 +51,13 @@ tabs:
 quickstart:
   heading: "install"
   lines:
-    - { kind: "cmt", text: "# zero install — run via npx" }
+    - { kind: "cmt", text: "# zero install  - run via npx" }
     - { kind: "cmd", text: "npx acptoapi" }
     - { kind: "cmt", text: "# default ports: :4800 (api), :4780 (kilo), :4790 (opencode)" }
     - { kind: "cmt", text: "# override flags: --port --kilo --opencode --claude-bin" }
     - { kind: "cmt", text: "# refresh local npx cache after publish" }
     - { kind: "cmd", text: "npx acptoapi --update" }
-    - { kind: "cmt", text: "# multi-key per provider — works out of the box" }
+    - { kind: "cmt", text: "# multi-key per provider  - works out of the box" }
     - { kind: "cmd", text: "export GROQ_API_KEY=key-a   GROQ_API_KEY_2=key-b   GROQ_API_KEY_3=key-c" }
 
 kits:
@@ -95,7 +95,7 @@ api_exports:
   heading: "endpoints"
   count: "18 routes"
   items:
-    - { code: "POST",  title: "/v1/chat/completions",                              sub: "OpenAI chat — streaming + non-streaming",         meta: "openai-compat", href: "https://github.com/AnEntrypoint/acptoapi#endpoints" }
+    - { code: "POST",  title: "/v1/chat/completions",                              sub: "OpenAI chat  - streaming + non-streaming",         meta: "openai-compat", href: "https://github.com/AnEntrypoint/acptoapi#endpoints" }
     - { code: "GET",   title: "/v1/models",                                        sub: "live-probed model list with queues",              meta: "openai-compat" }
     - { code: "POST",  title: "/v1/messages",                                      sub: "Anthropic Messages API drop-in",                  meta: "anthropic-compat" }
     - { code: "POST",  title: "/v1/messages/count_tokens",                         sub: "heuristic token estimator",                       meta: "anthropic-compat" }
@@ -125,7 +125,7 @@ features:
     - { code: "06", name: "multi-key rotation",          desc: "GROQ_API_KEY + GROQ_API_KEY_1..99 -- rotate inline on 401/429 before chain advances",   meta: "keyring.js" }
     - { code: "07", name: "per-provider backoff",        desc: "sampler hourly probes; failed providers fall to the back of the chain with exp backoff",meta: "sampler.js" }
     - { code: "08", name: "auto-fallback chain",         desc: "model: 'auto' walks env-detected providers ranked by SWE-bench, then ACP daemons",     meta: "auto-chain.js" }
-    - { code: "09", name: "named chains",                desc: "fast, cheap, smart, reasoning, free, local — model: 'fast' picks first available",     meta: "chains" }
+    - { code: "09", name: "named chains",                desc: "fast, cheap, smart, reasoning, free, local  - model: 'fast' picks first available",     meta: "chains" }
     - { code: "10", name: "claude CLI sandboxed",        desc: "spawned in tempdir -- no tools, no MCP, no skills, no hooks -- pure prompt -> text",      meta: "claude-cli" }
     - { code: "11", name: "session end -> finish_reason", desc: "stop | length | tool_calls then [DONE]",                                                meta: "stream" }
     - { code: "12", name: "ACP daemons auto-spawn",      desc: "kilo, opencode, gemini-cli, qwen-code, codex-cli, copilot-cli, cline, hermes, cursor, codeium, acp-cli -- installless via npx/bunx", meta: "acp-launcher.js" }

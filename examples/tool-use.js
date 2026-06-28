@@ -1,5 +1,5 @@
 /**
- * tool-use.js — Tool/function calling with generateGemini and streamGemini
+ * tool-use.js  - Tool/function calling with generateGemini and streamGemini
  *
  * Usage:
  *   GEMINI_API_KEY=your-key node examples/tool-use.js

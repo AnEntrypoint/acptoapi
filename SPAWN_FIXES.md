@@ -63,7 +63,7 @@ The new spawn sequence (per AGENTS.md) is:
 4. `opencode acp`
 
 ### Gemini CLI (port 4810)
-1. `gemini acp` (bare command first—fastest if installed)
+1. `gemini acp` (bare command first - fastest if installed)
 2. `bun x gemini-cli`
 3. `npx --yes gemini-cli`
 
