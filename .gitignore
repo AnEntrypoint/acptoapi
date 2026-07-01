@@ -1,4 +1,6 @@
 node_modules
+.kilo/
+start-test-server.bat
 traffic-proxy*.js
 .probe*.log
 .probe*.mjs
