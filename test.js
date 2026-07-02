@@ -47,6 +47,25 @@ function freshRequire(mod) {
     return require(mod);
 }
 
+// ---- dependency/reachability sanity ----
+test('reachability: core lib modules resolve and export expected shape', () => {
+    const mods = [
+        ['./lib/sdk', 'chat'],
+        ['./lib/chain', 'chain'],
+        ['./lib/queues', 'resolveQueue'],
+        ['./lib/named-chains', 'resolveChain'],
+        ['./lib/auto-chain', 'buildAutoChain'],
+        ['./lib/keyring', 'getKey'],
+        ['./lib/server', 'createServer'],
+    ];
+    for (const [mod, exportName] of mods) {
+        const resolved = require.resolve(mod);
+        assert(require('fs').existsSync(resolved), `${mod} should resolve to an existing file`);
+        const m = require(mod);
+        assert(typeof m[exportName] === 'function', `${mod} should export ${exportName} as a function`);
+    }
+});
+
 // ---- named-chains ----
 test('resolveChain: fast returns 3 links', () => {
     const { resolveChain } = require('./lib/named-chains');
@@ -391,6 +410,14 @@ async function realBackendSuite() {
         await testAsync('real: single model round-trip returns content', async () => {
             const r = await sdk.chat({ model: 'localgood/m', messages: [{ role: 'user', content: 'hi' }] });
             assert(r.choices[0].message.content === 'real-reply', `expected real-reply, got ${JSON.stringify(r.choices[0])}`);
+        });
+
+        await testAsync('real: single model round-trip completes within 5s', async () => {
+            const startedAt = Date.now();
+            const r = await sdk.chat({ model: 'localgood/m', messages: [{ role: 'user', content: 'hi' }] });
+            const elapsedMs = Date.now() - startedAt;
+            assert(r.choices[0].message.content === 'real-reply', 'expected real-reply');
+            assert(elapsedMs < 5000, `expected round-trip under 5000ms, took ${elapsedMs}ms`);
         });
 
         // comma-chain  - parse + real dispatch through the working link.
