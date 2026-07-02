@@ -116,4 +116,92 @@ const sampler = require('./lib/sampler');
 const { PROVIDER_KEYS, PROVIDER_DEFAULTS } = require('./lib/provider-maps');
 const modelProber = require('./lib/model-prober');
 
-module.exports = { streamGemini, createFullStream, generateGemini, streamRouter, generateRouter, createRouter, convertMessages, convertTools, cleanSchema, GeminiError, BridgeError, AuthError, RateLimitError, TimeoutError, ContextWindowError, ContentPolicyError, ProviderError, classifyError, redactKeys, streamACP, generateACP, translate, translateSync, buffer, stream, getFormat, FORMATS, getProvider, PROVIDERS, createStreamActor, Anthropic, OpenAI, createAnthropicServer, createOpenAIServer, resolveModel, chat, chain, fallback, chatChain, streamChain, listNamedChains, getRunHistory, sdkStream, buildAutoChain, DEFAULT_ORDER, DEFAULT_MODELS, hasProvider, getOrder, createCircuitBreaker, createSampler: sampler.createSampler, isAvailable: sampler.isAvailable, markFailed: sampler.markFailed, markOk: sampler.markOk, resetAvailability: sampler.resetAvailability, getStatus: sampler.getStatus, peekStatus: sampler.peekStatus, probe: sampler.probe, startSampler: sampler.startSampler, stopSampler: sampler.stopSampler, PROVIDER_KEYS, PROVIDER_DEFAULTS, probeModels: modelProber.probeModels, getCachedModels: modelProber.getCachedModels, createModelProber: modelProber.createModelProber, listAllModelsAndQueues, parseCommaList, splitPrefix, resolveQueue, listAllQueues, loadMatrix, matrixScore, clearMatrixCache };
+module.exports = { streamGemini, createFullStream, generateGemini, streamRouter, generateRouter, createRouter, convertMessages, convertTools, cleanSchema, GeminiError, BridgeError, AuthError, RateLimitError, TimeoutError, ContextWindowError, ContentPolicyError, ProviderError, classifyError, redactKeys, streamACP, generateACP, translate, translateSync, buffer, stream, getFormat, FORMATS, getProvider, PROVIDERS, createStreamActor, Anthropic, OpenAI, createAnthropicServer, createOpenAIServer, resolveModel, chat, chain, fallback, chatChain, streamChain, listNamedChains, getRunHistory, sdkStream, buildAutoChain, DEFAULT_ORDER, DEFAULT_MODELS, hasProvider, getOrder, createCircuitBreaker, createSampler: sampler.createSampler, isAvailable: sampler.isAvailable, markFailed: sampler.markFailed, markOk: sampler.markOk, resetAvailability: sampler.resetAvailability, getStatus: sampler.getStatus, peekStatus: sampler.peekStatus, probe: sampler.probe, startSampler: sampler.startSampler, stopSampler: sampler.stopSampler, PROVIDER_KEYS, PROVIDER_DEFAULTS, probeModels: modelProber.probeModels, getCachedModels: modelProber.getCachedModels, createModelProber: modelProber.createModelProber, listAllModelsAndQueues, parseCommaList, splitPrefix, resolveQueue, listAllQueues, loadMatrix, matrixScore, clearMatrixCache, runClaude };
+
+async function runClaude(opts = {}) {
+  const { spawn } = require('child_process');
+  const http = require('http');
+  const { execSync } = require('child_process');
+  const port = opts.port || 4800;
+  const baseUrl = `http://127.0.0.1:${port}`;
+  const apiKey = process.env.ACPTOAPI_API_KEY || 'theultimateflex';
+
+  const isServerUp = await new Promise((resolve) => {
+    const req = http.get(`${baseUrl}/health`, { timeout: 2000 }, (res) => {
+      let body = '';
+      res.on('data', (d) => body += d);
+      res.on('end', () => resolve(res.statusCode === 200));
+    });
+    req.on('error', () => resolve(false));
+    req.on('timeout', () => { req.destroy(); resolve(false); });
+  });
+
+  let serverProc = null;
+  if (!isServerUp) {
+    console.log(`[acptoapi] starting server on port ${port}...`);
+    serverProc = spawn(process.execPath, [require('path').join(__dirname, 'bin', 'acptoapi.js'), '--port', String(port)], {
+      stdio: 'ignore',
+      detached: true,
+      env: { ...process.env, PORT: String(port) },
+    });
+    serverProc.unref();
+    await new Promise((resolve) => {
+      const check = (attempts) => {
+        if (attempts <= 0) { resolve(); return; }
+        const req = http.get(`${baseUrl}/health`, { timeout: 1000 }, (res) => {
+          let body = '';
+          res.on('data', (d) => body += d);
+          res.on('end', () => {
+            if (res.statusCode === 200) resolve();
+            else setTimeout(() => check(attempts - 1), 500);
+          });
+        });
+        req.on('error', () => setTimeout(() => check(attempts - 1), 500));
+        req.on('timeout', () => { req.destroy(); setTimeout(() => check(attempts - 1), 500); });
+      };
+      check(20);
+    });
+    console.log(`[acptoapi] server ready at ${baseUrl}`);
+  } else {
+    console.log(`[acptoapi] server already running at ${baseUrl}`);
+  }
+
+  let claudeBin = 'claude';
+  try {
+    if (process.platform === 'win32') {
+      execSync(`where claude`, { stdio: 'pipe', windowsHide: true, timeout: 500 });
+    } else {
+      execSync(`which claude`, { stdio: 'pipe', timeout: 500 });
+    }
+  } catch {
+    throw new Error('claude CLI not found on PATH. Install: npm install -g @anthropic-ai/claude-code');
+  }
+
+  const claudeArgs = opts.args || [];
+  const claudeEnv = {
+    ...process.env,
+    ANTHROPIC_BASE_URL: baseUrl,
+    ANTHROPIC_AUTH_TOKEN: apiKey,
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+  };
+
+  console.log(`[acptoapi] launching claude -> ${baseUrl}`);
+  const claude = spawn(claudeBin, claudeArgs, {
+    stdio: 'inherit',
+    env: claudeEnv,
+  });
+
+  claude.on('error', (e) => {
+    console.error(`[acptoapi] claude spawn error: ${e.message}`);
+    process.exit(1);
+  });
+
+  claude.on('close', (code) => {
+    if (serverProc) {
+      try { process.kill(-serverProc.pid); } catch {}
+    }
+    process.exit(code || 0);
+  });
+
+  return claude;
+}

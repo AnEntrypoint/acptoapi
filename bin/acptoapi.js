@@ -1,6 +1,23 @@
 #!/usr/bin/env node
 'use strict';
-require('dotenv').config({ path: require('path').join(require('path').resolve(__dirname, '..'), '.env') });
+const path = require('path');
+const os = require('os');
+const fs = require('fs');
+
+// Load dotenv from both locations with ~/.acptoapi/.env taking precedence
+const devDotEnv = path.join(path.resolve(__dirname, '..'), '.env');
+const userDotEnv = path.join(os.homedir(), '.acptoapi', '.env');
+
+// Load the dev .env file first
+if (fs.existsSync(devDotEnv)) {
+  require('dotenv').config({ path: devDotEnv });
+}
+
+// Load the user .env file if it exists (overrides dev env)
+if (fs.existsSync(userDotEnv)) {
+  require('dotenv').config({ path: userDotEnv });
+}
+
 const { createServer } = require('../lib/server');
 
 // Last-resort guard: log unhandled rejections instead of letting the default
@@ -20,10 +37,12 @@ const get = (f, d) => { const i = args.indexOf(f); return i >= 0 ? args[i + 1] :
 const port = Number(get('--port', process.env.PORT || 4800));
 const kiloBase = get('--kilo', process.env.ACP_KILO_URL);
 const opencodeBase = get('--opencode', process.env.ACP_OPENCODE_URL);
+const claudeBase = get('--claude', process.env.ACP_CLAUDE_URL);
 
 const backends = {};
 if (kiloBase) backends.kilo = { base: kiloBase };
 if (opencodeBase) backends.opencode = { base: opencodeBase };
+if (claudeBase) backends.claude = { base: claudeBase };
 
 if (args.includes('--probe')) {
   (async () => {
@@ -70,5 +89,12 @@ if (args.includes('--probe')) {
   }
   process.exit(0);
 } else {
-  createServer({ port, backends }).catch(e => { console.error('startup failed:', e.message); process.exit(1); });
+  const cmd = args[0];
+  if (cmd === 'claude') {
+    const claudeArgs = args.slice(1);
+    const { runClaude } = require('../index');
+    runClaude({ args: claudeArgs, port }).catch(e => { console.error('claude startup failed:', e.message); process.exit(1); });
+  } else {
+    createServer({ port, backends }).catch(e => { console.error('startup failed:', e.message); process.exit(1); });
+  }
 }
