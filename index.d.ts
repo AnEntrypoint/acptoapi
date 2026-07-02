@@ -163,3 +163,27 @@ export function chain(linksOrName: string | (string | ChainLink)[], defaults?: C
 export function fallback(first: string | ChainLink, defaults?: ChainOptions): FallbackBuilder;
 export function listNamedChains(): string[];
 export function getRunHistory(): Array<{ startedAt: number; state: string; history: unknown[]; servedBy: string | null; finishedAt: number | null }>;
+
+export interface ResolvedModel {
+  provider: string;
+  model: string;
+  env?: string;
+  url?: string;
+  prefix: string;
+}
+export function splitPrefix(model: string): { prefix: string; rest: string };
+export function resolveModel(model: string): ResolvedModel;
+export function parseCommaList(model: string): string[] | null;
+export function chat(opts: Record<string, unknown>): Promise<unknown>;
+export function stream(opts: Record<string, unknown>): AsyncIterable<unknown>;
+export function chatChain(models: string | (string | ChainLink)[], opts: Record<string, unknown>): Promise<unknown>;
+export function streamChain(models: string | (string | ChainLink)[], opts: Record<string, unknown>): AsyncIterable<unknown>;
+export function resolveNamedChain(name: string): { links: ChainLink[]; defaults: Record<string, unknown> } | null;
+export function listAllModelsAndQueues(opts?: { matrixSource?: unknown; queueSources?: string[]; configPath?: string; queuesMap?: Record<string, unknown> }): Promise<Array<Record<string, unknown>>>;
+
+export interface QueueResolution {
+  links: ChainLink[];
+  source: string;
+}
+export function resolveQueue(opts: { name: string; queuesMap?: Record<string, unknown>; configPath?: string; extraQueueSources?: string[] }): QueueResolution;
+export function buildAutoChain(targetModel?: string, opts?: { hasTools?: boolean; [k: string]: unknown }): ChainLink[];

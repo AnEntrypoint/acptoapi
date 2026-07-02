@@ -565,6 +565,7 @@ Default base `http://127.0.0.1:4800` (set by `--port`/`PORT`). All endpoints are
 | `GET /v1/queues` | `{ queues: [{name, links: [<model>...], source}] }`  - all resolved queues across sources (server.js:982). |
 | `GET /v1/chains` | `{ chains: {<name>: [<model>...]}, builtin: [...], runtime: [...] }`  - built-in + runtime named chains (server.js:1031). `POST` body `{name, links:[...]}` registers (201); `DELETE ?name=<n>` removes. |
 | `GET /v1/sampler/status` | `{ status: [{provider, ok, failCount, nextCheckIn}] }`  - per-provider circuit-breaker state; `nextCheckIn` is ms until the breaker re-opens (server.js:987). |
+| `GET /v1/availability` | `{ availability: [{model, ok, successStreak, failStreak, totalSamples, avgLatencyMs, lastSuccessTs, lastFailTs, rank}] }`  - per-model live health tracking (lib/availability.js), sorted by descending `rank`. See "Invisible fallback + live availability tracking" above. |
 | `GET /v1/runs` | `{ runs: [{ts, requestedModel, resolvedLinks, attempted, finalModel, history, state, servedBy, startedAt, finishedAt}] }`  - last 50 chain runs (server.js:1001). |
 | `GET /v1/keyring/status` | `{ providers: [{provider, envKey, keys: [{index, key (masked 'prefix...suffix'), ok, failCount, lastFailedAt, lastReason, inBackoff, nextRetryInMs}]}] }`  - per-key health (server.js:988). |
 | `GET /v1/cache/stats`, `POST /v1/cache/clear` | Response-cache stats / clear (server.js:1002). |

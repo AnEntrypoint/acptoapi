@@ -195,6 +195,7 @@ Only providers with a present env key appear. Override with `PROVIDER_ORDER`. In
 ```bash
 npx acptoapi                      # start server on :4800
 npx acptoapi --port 8080          # custom port
+PORT=4000 node bin/acptoapi.js    # run straight from a repo checkout (no install)
 npx acptoapi --kilo <url> --opencode <url>
 npx acptoapi --probe              # show which provider env vars are set
 npx acptoapi --list-brands        # list OpenAI-compatible brand prefixes
