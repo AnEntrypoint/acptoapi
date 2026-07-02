@@ -524,7 +524,7 @@ All config files live under `~/.acptoapi/` (`os.homedir()`), each independently 
 
 **Provider keys** (lib/keyring.js  - multi-key): primary `<PROVIDER>_API_KEY`, additional `<PROVIDER>_API_KEY_1`..`_99`, JSON-array escape hatch `ACPTOAPI_KEYS_<ENVKEY>=["k1","k2"]`. See the Multi-key section above for the full provider->envKey table.
 
-**Server**: `PORT` (default 4800; `--port` flag wins), `ACPTOAPI_API_KEY` (auth token), `OLLAMA_URL` (default `http://localhost:11434`), `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_REGION`/`AWS_SESSION_TOKEN` (bedrock), `ACPTOAPI_MAX_BODY_BYTES` (default `10485760` = 10MB; `readBody` throws a `413 payload_too_large` once the accumulated request body exceeds this, instead of buffering an unbounded body into memory).
+**Server**: `PORT` (default 4800; `--port` flag wins), `ACPTOAPI_API_KEY` (auth token), `OLLAMA_URL` (default `http://localhost:11434`), `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_REGION`/`AWS_SESSION_TOKEN` (bedrock), `ACPTOAPI_MAX_BODY_BYTES` (default `10485760` = 10MB; `readBody` throws a `413 payload_too_large` once the accumulated request body exceeds this, instead of buffering an unbounded body into memory), `ACPTOAPI_REQUIRE_AUTH_ON_BIND=1` (opt-in strict mode: if `ACPTOAPI_BIND` is set to a non-loopback address without `ACPTOAPI_API_KEY`/`AGENTAPI_API_KEY` configured, `createServer()` closes the listening socket and rejects its startup Promise instead of warn-and-continue; default behavior when unset is unchanged  - warn and start).
 
 ### How to add a custom queue / override defaults
 
