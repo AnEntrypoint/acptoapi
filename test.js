@@ -500,10 +500,81 @@ async function realBackendSuite() {
             const r = sdk.resolveModel(undefined);
             assert(r.provider === 'acp' && r.prefix === 'kilo', 'undefined model -> acp/kilo default');
         });
+
+        // invisible fallback  - HTTP layer strips chain metadata even though the
+        // raw sdk.chat() result (asserted above) carries __chainAttempted for
+        // programmatic callers.
+        await testAsync('real: HTTP /v1/chat/completions never leaks chain metadata on success', async () => {
+            process.env.ACPTOAPI_DISABLE_ACP_AUTOLAUNCH = '1';
+            process.env.ACPTOAPI_DISABLE_PROBE = '1';
+            const { createServer } = freshRequire('./lib/server');
+            const { server, port } = await createServer({ port: 0 });
+            try {
+                const r = await fetch(`http://127.0.0.1:${port}/v1/chat/completions`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ model: 'localdead/x, localgood/m', messages: [{ role: 'user', content: 'hi' }] }),
+                });
+                const body = await r.json();
+                assert(!('__chainAttempted' in body) && !('chainHistory' in body), 'HTTP response must not leak chain internals');
+            } finally { server.close(); }
+        });
+
+        // availability HTTP surface  - GET /v1/availability reflects a real chain run.
+        // (single-model sdk.chat() bypasses chain-machine.js entirely; only actual
+        // multi-link chain() traversal records to availability, so drive it that way.)
+        await testAsync('real: GET /v1/availability reflects a real chain success', async () => {
+            const av = require('./lib/availability');
+            av.reset();
+            await chain(['localgood/m'], { sampler: false }).chat({ messages: [{ role: 'user', content: 'hi' }] });
+            const { createServer } = freshRequire('./lib/server');
+            const { server, port } = await createServer({ port: 0 });
+            try {
+                const r = await fetch(`http://127.0.0.1:${port}/v1/availability`);
+                const body = await r.json();
+                assert(Array.isArray(body.availability), 'availability endpoint returns an array');
+                assert(body.availability.some(e => e.model === 'localgood/m'), 'tracked model appears in availability list');
+            } finally { server.close(); }
+        });
     } finally {
         good.server.close();
     }
 }
+
+// ---- availability tracking + dynamic reordering ----
+test('availability: success bumps model ahead of failing model, unseen stays neutral', () => {
+    const av = freshRequire('./lib/availability');
+    av.reset();
+    av.recordFailure('groq/bad');
+    av.recordFailure('groq/bad');
+    av.recordSuccess('mistral/good', 40);
+    av.recordSuccess('mistral/good', 45);
+    const ranked = av.rerank([{ model: 'groq/bad' }, { model: 'mistral/good' }, { model: 'unseen/x' }]);
+    assert(ranked[0].model === 'mistral/good', `expected mistral/good first, got ${ranked.map(l => l.model)}`);
+    assert(ranked[ranked.length - 1].model === 'groq/bad', `expected groq/bad last, got ${ranked.map(l => l.model)}`);
+});
+
+test('availability: single-link chain is a no-op', () => {
+    const av = freshRequire('./lib/availability');
+    av.reset();
+    const links = [{ model: 'solo/model' }];
+    assert(av.rerank(links) === links, 'single-link rerank must return the same array unchanged');
+});
+
+test('availability: all-neutral (no data) preserves original order', () => {
+    const av = freshRequire('./lib/availability');
+    av.reset();
+    const links = [{ model: 'a/x' }, { model: 'b/y' }, { model: 'c/z' }];
+    const ranked = av.rerank(links);
+    assert(JSON.stringify(ranked.map(l => l.model)) === JSON.stringify(['a/x', 'b/y', 'c/z']), 'neutral chain must not reorder');
+});
+
+test('availability: getAll() shape', () => {
+    const av = freshRequire('./lib/availability');
+    av.reset();
+    av.recordSuccess('groq/live', 30);
+    const all = av.getAll();
+    assert(all.length === 1 && all[0].model === 'groq/live' && typeof all[0].rank === 'number', 'availability.getAll() shape');
+});
 
 // ---- summary (after async witnesses complete) ----
 realBackendSuite()

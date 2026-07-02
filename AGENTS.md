@@ -468,6 +468,31 @@ Two layers, distinct granularity:
 
 `content_policy` (message matches `/content.?policy|safety|blocked/i`) is a first-class reason. It does NOT trip the sampler breaker by default (it is not in the per-link `fallbackOn` of built-in chains, so for those it is terminal). For chains using the default full `FALLBACK_REASONS`, a content-policy refusal advances to the next link  - useful when one provider's safety filter rejects a prompt another provider accepts. It is never silently swallowed: it lands in `chainHistory` with `reason: 'content_policy'`.
 
+## Invisible fallback + live availability tracking (lib/availability.js, 2026-07-02)
+
+### Fallback is invisible to the caller
+
+Chain fallback never leaks its internal bookkeeping into a successful HTTP response body. `runChat`/`runStream` (lib/chain-machine.js) attach `result.__chainAttempted` (an array of `{model, ms, ok, reason}` per link tried) to the raw return value on success  - this is intentional for SDK callers (`sdk.chat`, `chain().chat`) who want programmatic visibility into which link served the response. The HTTP layer strips it before the caller sees it: `handleChat` (server.js, `/v1/chat/completions`) reads `result.__chainAttempted` for logging/the `X-Acptoapi-Served-Model` header, then `delete result.__chainAttempted` before `json(res, ...)`. `handleAnthropicMessages` (`/v1/messages`) never attaches chain metadata to a successful result at all  - it only exposes a `tried[]` array on the final 503 exhaustion error, which is diagnostic information on total failure, not a success-path leak.
+
+**Rule for new response paths**: any handler that calls `runChat`/`runStream`/`chain().chat()` and serializes the result to an HTTP client MUST `delete result.__chainAttempted` (or otherwise strip chain internals) before sending the body. Chain metadata on success is an SDK-only contract, never an HTTP-response contract.
+
+### Availability tracking (lib/availability.js)
+
+Distinct from `lib/sampler.js`'s per-provider-**prefix** circuit breaker (which only answers "should we even try this provider right now"), `lib/availability.js` tracks per-**model** health with positive signal: `{model, ok, successStreak, failStreak, totalSamples, avgLatencyMs, lastSuccessTs, lastFailTs}`. Updated on every chain-link attempt in `runChat`/`runStream` (both success and failure branches), alongside the existing `sampler.markOk`/`markFailed` calls.
+
+- `recordSuccess(model, latencyMs)`  - increments `successStreak`, resets `failStreak`, updates `avgLatencyMs` via an exponential moving average (`LATENCY_DECAY = 0.3`, newest sample weighted 30%).
+- `recordFailure(model)`  - increments `failStreak`, resets `successStreak`.
+- `score(model)`  - returns `0` (neutral) for any model with fewer than `MIN_SAMPLES_FOR_RANK = 2` samples; otherwise `min(successStreak,10) - min(failStreak,10)*2 - min(avgLatencyMs/1000, 10)`. Neutral score means an unseen model is never bumped or demoted until it has actually been observed.
+- `rerank(links)`  - stable sort by descending score; ties (including all-neutral) keep original order. Single-link arrays return the identical array reference (no-op).
+
+### Dynamic chain reordering vs. matrix-block demotion
+
+`buildAutoChain` (lib/auto-chain.js) calls `availability.rerank(sorted)` after the existing direct/ACP-tier + SWE-bench-score sort and the optional tool-capability reorder, but before the `ACPTOAPI_AUTO_CHAIN_CAP` slice  - so live-health reordering happens WITHIN each tier (direct providers still precede ACP-wrapped ones), not across them. This is a continuous score-based re-rank, not a binary demotion: a recently-failing model is never permanently removed, only sorted later, and can climb back to the front the moment it starts succeeding again. It differs from `opts.matrixSource`'s `reorderByMatrix` (chain-machine.js), which demotes `ok:false` cells to the END of the chain in one binary partition step based on a static/externally-loaded matrix, not live per-request outcomes. Disable dynamic reordering with `ACPTOAPI_DISABLE_AVAILABILITY_RANK=1`.
+
+### Observability
+
+`GET /v1/availability` returns `{ availability: [{model, ok, successStreak, failStreak, totalSamples, avgLatencyMs, lastSuccessTs, lastFailTs, rank}, ...] }` sorted by descending `rank`, mirroring the shape of `GET /v1/sampler/status` but at model granularity instead of provider-prefix granularity.
+
 ## Configuration  - ~/.acptoapi directory + env vars
 
 ### ~/.acptoapi/ directory structure
@@ -493,7 +518,7 @@ All config files live under `~/.acptoapi/` (`os.homedir()`), each independently 
 
 **Live probe** (lib/model-probe-live.js): `ACPTOAPI_LIVE_PROBE=1` (force live chain on cold cache; per-request via `x-live-probe: 1` header), `ACPTOAPI_DISABLE_PROBE=1` (disable startup background probe), `ACPTOAPI_PROBE_CAP=N` (max models/provider, default 100), `ACPTOAPI_PROBE_CONCURRENCY=N` (in-flight probes, default 12), `ACPTOAPI_PROBE_TTL_MS=N` (default 600000 = 10min), `ACPTOAPI_PROBE_OLLAMA=1` (include local ollama), `ACPTOAPI_ACP_PROBE_TTL_MS=N` (ACP cache TTL, default 86400000 = 24h), `ACPTOAPI_PROBE_INTERVAL_MS=N` (sampler interval, default 3600000 = 1h).
 
-**Routing**: `PROVIDER_ORDER=a,b,c` (override auto-chain priority order; only env-keyed providers appear).
+**Routing**: `PROVIDER_ORDER=a,b,c` (override auto-chain priority order; only env-keyed providers appear). `ACPTOAPI_DISABLE_AVAILABILITY_RANK=1` (disable live per-model health reordering in `buildAutoChain`; see Invisible fallback + live availability tracking).
 
 **Daemon spawn overrides** (shell strings, lib/acp-launcher.js): `KILO_ACP_CMD`, `OPENCODE_ACP_CMD`, `QWEN_CODE_ACP_CMD`, `CODEX_CLI_ACP_CMD`, `COPILOT_CLI_ACP_CMD`, `CLINE_ACP_CMD`, `HERMES_ACP_CMD`, `CURSOR_ACP_CMD`, `CODEIUM_ACP_CMD`, `ACP_CLI_CMD`. Opt out of all autolaunch with `ACPTOAPI_DISABLE_ACP_AUTOLAUNCH=1`.
 
