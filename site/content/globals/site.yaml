@@ -1,7 +1,7 @@
 title: "acptoapi"
 siteName: "acptoapi"
 tagline: "OpenAI-compat facade over ACP, Anthropic, OpenAI, and 17 brand providers"
-description: "OpenAI-compatible HTTP facade. Point any OpenAI SDK at it  - requests route to Kilo, opencode, Claude Code CLI, Anthropic, Gemini, Ollama, Bedrock, Groq, OpenRouter, and 17 brand providers. Real token-by-token SSE, agentic tool calls preserved, multi-key rotation, per-provider backoff."
+description: "OpenAI-compatible HTTP facade. Point any OpenAI SDK at it  - requests route to Kilo, opencode, Anthropic, Gemini, Ollama, Bedrock, Groq, OpenRouter, and 17 brand providers. Real token-by-token SSE, agentic tool calls preserved, multi-key rotation, per-provider backoff."
 repo: "https://github.com/AnEntrypoint/acptoapi"
 url: "https://anentrypoint.github.io/acptoapi/"
 year: 2026

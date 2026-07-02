@@ -4,7 +4,7 @@ title: Home
 hero:
   heading: "acptoapi"
   subheading: "OpenAI-compat facade over ACP + Anthropic + 17 brand providers"
-  body: "Point any OpenAI SDK at it. Requests route by model prefix to Kilo, opencode, Claude Code CLI, Anthropic, Gemini, Ollama, Bedrock, Groq, OpenRouter, Together, DeepSeek, xAI, Cerebras, Mistral, Fireworks, OpenAI, Sambanova, NVIDIA, Cloudflare, Z.AI, Qwen, Codestral, opencode-zen, Cohere, Perplexity. Real token-by-token SSE. Tool calls preserved. Multi-key per provider with rotation + exponential backoff."
+  body: "Point any OpenAI SDK at it. Requests route by model prefix to Kilo, opencode, Anthropic, Gemini, Ollama, Bedrock, Groq, OpenRouter, Together, DeepSeek, xAI, Cerebras, Mistral, Fireworks, OpenAI, Sambanova, NVIDIA, Cloudflare, Z.AI, Qwen, Codestral, opencode-zen, Cohere, Perplexity. Real token-by-token SSE. Tool calls preserved. Multi-key per provider with rotation + exponential backoff."
   badges:
     - { label: "streaming" }
     - { label: "tool_calls" }
@@ -66,7 +66,6 @@ kits:
   items:
     - { code: "01", title: "kilo/<model>",        sub: "ACP daemon - port 4780",         meta: "auto-spawn", href: "https://github.com/kilo-language/kilo-code" }
     - { code: "02", title: "opencode/<model>",    sub: "ACP daemon - port 4790",         meta: "auto-spawn", href: "https://github.com/opencode-ai/opencode" }
-    - { code: "03", title: "gemini-cli/<model>",  sub: "ACP daemon - port 4810",         meta: "GEMINI_API_KEY", href: "https://github.com/google/gemini-cli" }
     - { code: "04", title: "qwen-code/<model>",   sub: "ACP daemon - port 4820",         meta: "QWEN_API_KEY",   href: "https://github.com/QwenLM/qwen-code" }
     - { code: "05", title: "codex-cli/<model>",   sub: "ACP daemon - port 4830",         meta: "OPENAI_API_KEY", href: "#" }
     - { code: "06", title: "copilot-cli/<model>", sub: "ACP daemon - port 4840",         meta: "GITHUB_TOKEN",   href: "https://github.com/github/copilot-cli" }
@@ -75,7 +74,6 @@ kits:
     - { code: "09", title: "cursor-acp/<model>",  sub: "ACP daemon - port 4870",         meta: "auto-spawn",     href: "https://github.com/roshan-c/cursor-acp" }
     - { code: "10", title: "codeium-cli/<model>", sub: "ACP daemon - port 4880",         meta: "CODEIUM_API_KEY",href: "https://help.codeium.com" }
     - { code: "11", title: "acp-cli/<model>",     sub: "ACP reference - port 4890",      meta: "no key",         href: "https://github.com/acp-protocol/acp-cli" }
-    - { code: "12", title: "claude/<model>",      sub: "Claude Code CLI - OAuth",        meta: "no key",         href: "https://docs.claude.com/claude-code" }
     - { code: "13", title: "anthropic/claude-*",  sub: "Direct API",                     meta: "ANTHROPIC_API_KEY",href: "https://www.anthropic.com" }
     - { code: "14", title: "gemini/gemini-*",     sub: "Google AI",                      meta: "GEMINI_API_KEY", href: "https://ai.google.dev" }
     - { code: "15", title: "ollama/<model>",      sub: "Local - OLLAMA_URL",             meta: "no key",         href: "https://ollama.com" }
@@ -117,18 +115,17 @@ api_exports:
 features:
   heading: "how it works"
   items:
-    - { code: "01", name: "messages[] -> backend native", desc: "OpenAI/Anthropic/Gemini bodies translated to ACP text parts or Claude Code -p prompts",  meta: "translate.js" }
+    - { code: "01", name: "messages[] -> backend native", desc: "OpenAI/Anthropic/Gemini bodies translated to ACP text parts",  meta: "translate.js" }
     - { code: "02", name: "text deltas -> delta.content", desc: "one SSE frame per token, no buffering, no polling -- first chunk in ms",                meta: "stream" }
     - { code: "03", name: "reasoning -> reasoning_content",desc: "Anthropic thinking + OpenAI reasoning passed through as delta.reasoning_content",     meta: "reasoning" }
     - { code: "04", name: "tool_calls preserved",        desc: "OpenAI delta.tool_calls with input JSON accumulated from streamed input_json_delta",   meta: "tool-use" }
-    - { code: "05", name: "tool_results folded in",      desc: "Claude agentic loop tool_result blocks rendered into delta.content with marker",       meta: "agentic" }
+    - { code: "05", name: "tool_results folded in",      desc: "Anthropic tool_result blocks rendered into delta.content with marker",       meta: "agentic" }
     - { code: "06", name: "multi-key rotation",          desc: "GROQ_API_KEY + GROQ_API_KEY_1..99 -- rotate inline on 401/429 before chain advances",   meta: "keyring.js" }
     - { code: "07", name: "per-provider backoff",        desc: "sampler hourly probes; failed providers fall to the back of the chain with exp backoff",meta: "sampler.js" }
     - { code: "08", name: "auto-fallback chain",         desc: "model: 'auto' walks env-detected providers ranked by SWE-bench, then ACP daemons",     meta: "auto-chain.js" }
     - { code: "09", name: "named chains",                desc: "fast, cheap, smart, reasoning, free, local  - model: 'fast' picks first available",     meta: "chains" }
-    - { code: "10", name: "claude CLI sandboxed",        desc: "spawned in tempdir -- no tools, no MCP, no skills, no hooks -- pure prompt -> text",      meta: "claude-cli" }
     - { code: "11", name: "session end -> finish_reason", desc: "stop | length | tool_calls then [DONE]",                                                meta: "stream" }
-    - { code: "12", name: "ACP daemons auto-spawn",      desc: "kilo, opencode, gemini-cli, qwen-code, codex-cli, copilot-cli, cline, hermes, cursor, codeium, acp-cli -- installless via npx/bunx", meta: "acp-launcher.js" }
+    - { code: "12", name: "ACP daemons auto-spawn",      desc: "kilo, opencode, qwen-code, codex-cli, copilot-cli, cline, hermes, cursor, codeium, acp-cli -- installless via npx/bunx", meta: "acp-launcher.js" }
 
 examples:
   heading: "sdk drop-in"
@@ -136,7 +133,6 @@ examples:
     - { code: "js",  title: "OpenAI SDK",           sub: "baseURL -> :4800/v1, apiKey=none, stream:true",        meta: "openai",     href: "https://github.com/AnEntrypoint/acptoapi#sdk" }
     - { code: "py",  title: "Anthropic SDK",        sub: "base_url -> :4800, POST /v1/messages",                 meta: "anthropic",  href: "https://github.com/AnEntrypoint/acptoapi#anthropic" }
     - { code: "js",  title: "Gemini SDK",           sub: "POST /v1beta/models/:m:streamGenerateContent",        meta: "gemini",     href: "https://github.com/AnEntrypoint/acptoapi#gemini" }
-    - { code: "cli", title: "Claude Code CLI",      sub: "ANTHROPIC_BASE_URL=:4800 claude -p '...'",            meta: "claude",     href: "https://github.com/AnEntrypoint/acptoapi#claude-cli" }
 
 docs:
   heading: "docs"
