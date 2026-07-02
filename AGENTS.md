@@ -661,6 +661,7 @@ curl -s -X POST http://127.0.0.1:4800/debug/translate -H 'content-type: applicat
 
 - `acptoapi` (no flags)  - start the server (`--port N`, `--kilo <url>`, `--opencode <url>`).
 - `acptoapi --probe`  - print env-key presence per provider (`OK`/`--` per key) and exit.
+- `acptoapi --missing-free`  - list every provider with a genuine free tier (curated `FREE_TIER_INFO` table in `bin/acptoapi.js`, excludes paid-only and local/no-key providers) whose env key is NOT currently set, with its signup URL and a one-line note. Useful for "what free keys should I add" onboarding.
 - `acptoapi --list-brands`  - list OpenAI-compat brand prefixes.
 - `acptoapi --list-chains`  - list config-defined named chains (`<name>: a -> b -> c`).
 - `acptoapi --update`  - clear npx/bun caches and report the latest npm version (forces fresh `bunx acptoapi@latest`).

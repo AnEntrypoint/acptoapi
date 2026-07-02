@@ -44,7 +44,66 @@ if (kiloBase) backends.kilo = { base: kiloBase };
 if (opencodeBase) backends.opencode = { base: opencodeBase };
 if (claudeBase) backends.claude = { base: claudeBase };
 
-if (args.includes('--probe')) {
+// Curated free-tier metadata: which providers genuinely offer a no-cost tier
+// (permanent free allowance or a trial that doesn't require a credit card),
+// and where to sign up for a key. `free: false` entries are paid-only or
+// require billing info even for a "free trial" - excluded from --missing-free.
+// `free: 'local'` entries need no signup at all (self-hosted / no key).
+const FREE_TIER_INFO = {
+  anthropic:      { free: false, signupUrl: 'https://console.anthropic.com/settings/keys', note: 'paid, no permanent free tier' },
+  gemini:         { free: true,  signupUrl: 'https://aistudio.google.com/apikey', note: 'generous free tier via Google AI Studio' },
+  ollama:         { free: 'local', signupUrl: 'https://ollama.com/download', note: 'local install, no API key or signup needed' },
+  bedrock:        { free: false, signupUrl: 'https://console.aws.amazon.com/bedrock/', note: 'AWS billing account required' },
+  groq:           { free: true,  signupUrl: 'https://console.groq.com/keys', note: 'free tier, generous rate limits' },
+  openrouter:     { free: true,  signupUrl: 'https://openrouter.ai/keys', note: 'many models with a ":free" suffix, no cost' },
+  together:       { free: true,  signupUrl: 'https://api.together.ai/settings/api-keys', note: 'free trial credits on signup' },
+  deepseek:       { free: false, signupUrl: 'https://platform.deepseek.com/api_keys', note: 'pay-as-you-go, very low cost, no permanent free tier' },
+  xai:            { free: false, signupUrl: 'https://console.x.ai/', note: 'requires billing setup' },
+  cerebras:       { free: true,  signupUrl: 'https://cloud.cerebras.ai/', note: 'free tier available' },
+  perplexity:     { free: false, signupUrl: 'https://www.perplexity.ai/settings/api', note: 'requires billing setup' },
+  mistral:        { free: true,  signupUrl: 'https://console.mistral.ai/api-keys', note: 'free tier (La Plateforme) with rate limits' },
+  fireworks:      { free: true,  signupUrl: 'https://fireworks.ai/account/api-keys', note: 'free trial credits on signup' },
+  openai:         { free: false, signupUrl: 'https://platform.openai.com/api-keys', note: 'requires billing setup' },
+  nvidia:         { free: true,  signupUrl: 'https://build.nvidia.com/', note: 'free API credits via NVIDIA NIM' },
+  sambanova:      { free: true,  signupUrl: 'https://cloud.sambanova.ai/apis', note: 'free tier available' },
+  cloudflare:     { free: true,  signupUrl: 'https://dash.cloudflare.com/?to=/:account/ai/workers-ai', note: 'Workers AI free tier (per Cloudflare account)' },
+  zai:            { free: true,  signupUrl: 'https://z.ai/manage-apikey/apikey-list', note: 'free tier for GLM models' },
+  qwen:           { free: true,  signupUrl: 'https://dashscope.console.aliyun.com/apiKey', note: 'free trial credits (Alibaba Cloud account)' },
+  codestral:      { free: true,  signupUrl: 'https://console.mistral.ai/codestral', note: 'free for individual/non-commercial use' },
+  'opencode-zen':  { free: true,  signupUrl: 'https://opencode.ai/', note: 'curated free-tier routing service' },
+  meta:           { free: false, signupUrl: 'https://www.llama-api.com/', note: 'requires billing setup' },
+  cohere:         { free: true,  signupUrl: 'https://dashboard.cohere.com/api-keys', note: 'free trial key, no credit card, non-commercial rate-limited' },
+  aion:           { free: true,  signupUrl: 'https://aionlabs.ai/', note: 'permanent free tier, no API key required for base access' },
+  librechat:      { free: 'local', signupUrl: 'https://www.librechat.ai/docs/quick_start/local_setup', note: 'self-hosted aggregator, no signup' },
+};
+
+if (args.includes('--missing-free')) {
+  const { listBrands, getBrand } = require('../lib/openai-brands');
+  const builtins = [
+    { name: 'anthropic', envKey: 'ANTHROPIC_API_KEY' },
+    { name: 'gemini', envKey: 'GEMINI_API_KEY' },
+    { name: 'ollama', envKey: null },
+    { name: 'bedrock', envKey: 'AWS_ACCESS_KEY_ID' },
+  ];
+  const all = [...builtins, ...listBrands().map(b => ({ name: b, envKey: getBrand(b).envKey }))];
+  const missing = all.filter(({ name, envKey }) => {
+    const info = FREE_TIER_INFO[name];
+    if (!info || info.free !== true) return false; // skip paid-only and local (no key needed)
+    return envKey && !process.env[envKey];
+  });
+  if (missing.length === 0) {
+    console.log('All free-tier providers with a signup key are already configured.');
+  } else {
+    console.log(`${missing.length} free-tier provider(s) not yet configured:\n`);
+    for (const { name, envKey } of missing) {
+      const info = FREE_TIER_INFO[name];
+      console.log(`${name} (${envKey})`);
+      console.log(`  signup: ${info.signupUrl}`);
+      console.log(`  note:   ${info.note}\n`);
+    }
+  }
+  process.exit(0);
+} else if (args.includes('--probe')) {
   (async () => {
     const { listBrands, getBrand } = require('../lib/openai-brands');
     const checks = [
