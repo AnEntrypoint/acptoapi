@@ -352,7 +352,7 @@ Chain fallback is driven by **xstate v5 FSM** (`lib/chain-machine.js`), not a li
 
 - **State machine**: `setup({}).createMachine(...)` defines states `trying`, `done`, `exhausted` and events `SUCCESS` and `FALLBACK { reason, error }`. Actors are created via `createActor(machine)` and pumped by async drivers (`runStream`/`runChat`).
 - **Run history**: `getRunHistory()` subscribes to actor snapshots and returns the last 50 runs. This is NOT a log file or array  - it's a live stream of FSM state transitions.
-- **Fallback reasons**: Canonical set is `['error', 'timeout', 'rate_limit', 'empty', 'content_policy']`. Default `fallbackOn = ['error']` means other reasons are terminal.
+- **Fallback reasons**: Canonical set (`FALLBACK_REASONS`, chain-machine.js:4) is the full 9-item list `['error', 'timeout', 'rate_limit', 'empty', 'content_policy', 'sampler_backoff', 'matrix_block', 'auth', 'fetch_failed']`  - see "Error Classification" below for the authoritative breakdown. When a link has no explicit `fallbackOn`, `shouldFallback()` defaults to this FULL set (every reason advances the chain), not `['error']` alone. Built-in named chains (`lib/named-chains.js` `FALLBACK_ON`) narrow this per-link to the 4-item `['error','rate_limit','timeout','empty']`; `buildAutoChain` (`lib/auto-chain.js` `FALLBACK_ON`) pins the full 9-item set `['error','rate_limit','timeout','empty','auth','fetch_failed','content_policy','sampler_backoff','matrix_block']` per link  - the two constants are NOT identical despite both being named `FALLBACK_ON`.
 - **SDK integration**: `chat`/`stream` methods in `lib/sdk.js` early-branch on `model: 'chain/<name>'` and delegate to `lib/chain.js`. Old `streamChain`/`chatChain` now wrap the chain builder.
 - **Config-driven chains**: Named chains (e.g., `chain('fallback-to-gemini')`) resolve links via `loadConfig().chains`. `--list-chains` CLI flag and `GET /debug/chains` enumerate defined and recent chains.
 - **Why xstate not floosie**: `floosie` was evaluated and rejected because it is pure ESM (CJS friction) with 5 heavy transitive deps. xstate FSM alone provides deterministic state transitions and event handling without the ESM/CJS wrap/unwrap dance. Unused `flowie` dep was removed in the same commit.
@@ -524,7 +524,7 @@ All config files live under `~/.acptoapi/` (`os.homedir()`), each independently 
 
 **Provider keys** (lib/keyring.js  - multi-key): primary `<PROVIDER>_API_KEY`, additional `<PROVIDER>_API_KEY_1`..`_99`, JSON-array escape hatch `ACPTOAPI_KEYS_<ENVKEY>=["k1","k2"]`. See the Multi-key section above for the full provider->envKey table.
 
-**Server**: `PORT` (default 4800; `--port` flag wins), `ACPTOAPI_API_KEY` (auth token), `OLLAMA_URL` (default `http://localhost:11434`), `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_REGION`/`AWS_SESSION_TOKEN` (bedrock).
+**Server**: `PORT` (default 4800; `--port` flag wins), `ACPTOAPI_API_KEY` (auth token), `OLLAMA_URL` (default `http://localhost:11434`), `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_REGION`/`AWS_SESSION_TOKEN` (bedrock), `ACPTOAPI_MAX_BODY_BYTES` (default `10485760` = 10MB; `readBody` throws a `413 payload_too_large` once the accumulated request body exceeds this, instead of buffering an unbounded body into memory).
 
 ### How to add a custom queue / override defaults
 
