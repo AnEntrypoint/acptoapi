@@ -175,6 +175,8 @@ Run `npx acptoapi --probe` to print which provider env vars are currently set, a
 `anthropic, openrouter, groq, nvidia, cerebras, sambanova, mistral, codestral, qwen, zai, cloudflare, gemini, ollama, kilo, opencode, ...`.
 Only providers with a present env key appear. Override with `PROVIDER_ORDER`. Inspect the resolved chain at `GET /debug/auto-chain`.
 
+**Self-tuning availability:** the server continuously tracks each provider/model's real success rate and latency and quietly re-ranks the fallback chain to favor whoever is actually responding well right now  - no manual tuning needed. Enable a stricter free-tier-first mode with `ACPTOAPI_FREE_TIER_MODE=1`, and inspect the live rankings at `GET /v1/availability`. See `AGENTS.md` for the full mechanics.
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
