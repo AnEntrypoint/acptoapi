@@ -7,6 +7,12 @@
 // local OpenAI-compatible SSE server bound to a real socket (same pattern as the
 // kilo/opencode ACP daemons  - a genuine HTTP backend, not a mock provider).
 
+// Disabled globally, before any lib/server.js require: real ACP daemon
+// autolaunch (kilo/opencode/qwen-code/...) spawns real child processes with
+// no test-scoped teardown, which previously hung the whole suite indefinitely.
+process.env.ACPTOAPI_ENABLE_ACP_AUTOLAUNCH = '0';
+process.env.ACPTOAPI_DISABLE_PROBE = '1';
+
 const assert = require('assert');
 const http = require('http');
 
@@ -505,8 +511,6 @@ async function realBackendSuite() {
         // raw sdk.chat() result (asserted above) carries __chainAttempted for
         // programmatic callers.
         await testAsync('real: HTTP /v1/chat/completions never leaks chain metadata on success', async () => {
-            process.env.ACPTOAPI_DISABLE_ACP_AUTOLAUNCH = '1';
-            process.env.ACPTOAPI_DISABLE_PROBE = '1';
             const { createServer } = freshRequire('./lib/server');
             const { server, port } = await createServer({ port: 0 });
             try {
