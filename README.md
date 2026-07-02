@@ -88,7 +88,7 @@ const r = await chat({
 console.log(r.choices[0].message.content);
 ```
 
-`'chain/<name>'` is a legacy alias that reads `~/.thebird/config.json` chains  - both forms work.
+`'chain/<name>'` is a legacy alias that reads `~/.thebird/config.json` chains  - both forms work, but prefer `queue/<name>` going forward (using `chain/<name>` now logs a one-time deprecation warning per name).
 
 ### Streaming
 

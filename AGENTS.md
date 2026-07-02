@@ -379,23 +379,17 @@ Default model selection: if caller passes only `provider`, resolver fills in `PR
 
 Kilo + opencode ACP daemons speak the same protocol (SSE event stream + REST session/message). Required ordering: open `GET /event` SSE BEFORE `POST /session/<id>/message` or events drop. Terminate on `session.idle`. Surfaces only assembled content (no tool_calls back to caller). Implementations in consumers (e.g., freddie `src/agent/llm_resolver.js::acpChat`) must mirror this ordering.
 
-## Live model probe (2026-05-13)
+## Live model probe (2026-05-13, corrected 2026-07-02)
 
-`lib/model-probe-live.js` enumerates each configured provider's `/models` endpoint, chat-probes up to `ACPTOAPI_PROBE_CAP` (default 100) models per provider with a 1-token request, and caches the working set sorted by latency. `handleAnthropicMessages` auto-uses this chain whenever `isFresh()` is true; otherwise it kicks off the probe in the background and uses the static `buildAutoChain` for the current request.
+`lib/model-probe-live.js` does NOT dynamically fetch each provider's `/models` endpoint - it works from a static, curated `KNOWN` dictionary (`lib/model-probe-live.js:104`) where every entry must carry a SWE-bench score. `getAvailableModels()` is the passive path: reads the on-disk/in-memory probe cache (per-model `{ok, ts}`, TTL-gated) without making any real network calls. `getAvailableModelsLive({log, force})` is the ACTIVE path: chat-probes models from `KNOWN` with a 1-token request and writes `saveProbeCache()` to disk. Until 2026-07-02, `GET /debug/probe-live` only ever called the passive `getAvailableModels()` - `getAvailableModelsLive`/`probeProvider`/`probeAllProviders` were exported but never invoked anywhere, so `ACPTOAPI_LIVE_PROBE=1`, the `x-live-probe` header, and `?force=1` all had zero effect and the on-disk cache was never actually written by any reachable path. Fixed: the endpoint now checks `?force=1` or `x-live-probe: 1` and calls `getAvailableModelsLive({force: true})`, which bypasses the boot-time `PROBE_ENABLED` gate per-request.
 
-Knobs:
-- `ACPTOAPI_LIVE_PROBE=1`  - force live chain even on cold cache (per-request via header `x-live-probe: 1`).
-- `ACPTOAPI_DISABLE_PROBE=1`  - disable startup background probe entirely.
-- `ACPTOAPI_PROBE_CAP=N`  - max models per provider (default 100).
-- `ACPTOAPI_PROBE_CONCURRENCY=N`  - bounded in-flight chat-probes (default 12).
-- `ACPTOAPI_PROBE_TTL_MS=N`  - in-memory and on-disk TTL (default 10min).
-- `ACPTOAPI_PROBE_CACHE_PATH=<file>`  - defaults to `~/.acptoapi/probe-cache.json`; persists across reboots so cold `bunx` invocations skip the 30-60s warmup.
-- `ACPTOAPI_PROBE_OLLAMA=1`  - include local ollama in the probe even without `OLLAMA_URL` set.
-
-Probe covers brand providers (groq, openrouter, ...) plus anthropic, gemini, ollama when their env keys are present. Each model gets one billable token charged on first probe (and once per TTL window). Disable with `ACPTOAPI_DISABLE_PROBE=1` if cost is a concern.
+Real env vars (verify against the file before trusting any OTHER env var name for this module - several previously-documented ones here, `ACPTOAPI_PROBE_CAP`, `ACPTOAPI_DISABLE_PROBE`, `ACPTOAPI_PROBE_CONCURRENCY`, `ACPTOAPI_PROBE_OLLAMA`, and a function named `isFresh()`, do NOT exist anywhere in the codebase and were stale documentation removed in this correction):
+- `ACPTOAPI_LIVE_PROBE=1`  - enables active probing at server boot; without it, only the passive cache-reading path runs unless a request forces it.
+- `ACPTOAPI_PROBE_TTL_MS=N`  - in-memory and on-disk cache TTL (default 600000ms = 10min).
+- `ACPTOAPI_PROBE_CACHE_PATH=<file>`  - defaults to `~/.acptoapi/probe-cache.json`; persists across reboots.
 
 Endpoints:
-- `GET /debug/probe-live[?force=1]`  - list working models, the chain, and probe activity log.
+- `GET /debug/probe-live[?force=1]` (or header `x-live-probe: 1`)  - `force=1`/the header triggers a real active probe via `getAvailableModelsLive`; without it, serves the passive cached view.
 - `GET /v1/chains`  - list built-in + runtime named chains with their resolved links.
 - `POST /v1/chains` body `{name, links: [...]}`  - register a runtime chain.
 - `DELETE /v1/chains?name=<name>`  - remove a runtime chain.

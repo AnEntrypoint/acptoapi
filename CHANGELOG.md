@@ -11,6 +11,7 @@ their content is folded into the following real entry. Plain ASCII only.
 - fix: quoted hyphenated key in `provider-maps.js`; added missing type declarations and docs.
 - fix: hardened security - provider key reads routed through keyring, request body size capped, non-loopback bind hardened, unresolvable model now returns 400 instead of falling through silently.
 - fix: `test.js` no longer hangs indefinitely - `activityInterval` unref'd, ACP autolaunch disabled in tests.
+- fix: npm audit fix for 3 transitive vulns under `@google/genai` (protobufjs, @protobufjs/utf8, ws) - lockfile-only bump, 0 vulnerabilities remaining.
 - feat: invisible chain fallback verification plus live per-model availability tracking.
 
 ## [1.0.130] - 2026-07-01
