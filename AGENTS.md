@@ -409,7 +409,7 @@ Built-ins in `lib/named-chains.js`:
 
 ## ACP auto-launch (2026-05-13)
 
-`lib/acp-launcher.js` probes `:4780` (kilo) and `:4790` (opencode) at server boot. If down, tries an ordered list of spawn commands per daemon: bare binary, subcommand, npx, bunx. Override the entire attempt list with `KILO_ACP_CMD=...` / `OPENCODE_ACP_CMD=...` (shell string). `ACPTOAPI_DISABLE_ACP_AUTOLAUNCH=1` opts out.
+`lib/acp-launcher.js` probes `:4780` (kilo) and `:4790` (opencode) at server boot. If down, tries an ordered list of spawn commands per daemon: bare binary, subcommand, npx, bunx. Override the entire attempt list with `KILO_ACP_CMD=...` / `OPENCODE_ACP_CMD=...` (shell string). `ACPTOAPI_ENABLE_ACP_AUTOLAUNCH=0` opts out (autolaunch is ON by default  - see server.js's `server.listen` callback).
 
 Each attempt is given 600ms to fail-fast (ENOENT, immediate exit) before moving to the next. The chain treats kilo + opencode as the second-to-last fallback before the claude CLI. If both daemons fail to launch, the chain still tries the links  - they just return "fetch failed" quickly and fall through.
 
@@ -585,7 +585,7 @@ All config files live under `~/.acptoapi/` (`os.homedir()`), each independently 
 
 **Routing**: `PROVIDER_ORDER=a,b,c` (override auto-chain priority order; only env-keyed providers appear). `ACPTOAPI_DISABLE_AVAILABILITY_RANK=1` (disable live per-model health reordering in `buildAutoChain`; see Invisible fallback + live availability tracking). `ACPTOAPI_FREE_TIER_MODE=1` (opt-in: after all other `buildAutoChain` sorting, stably move free-tier links - ollama, kilo, opencode, gemini, groq, and any `openrouter/*:free`-style model id - to the head of the chain, ahead of paid/premium links; unset is byte-identical to default ordering). `ACPTOAPI_AVAILABILITY_CACHE_PATH` (path override for the on-disk availability health cache, default `~/.acptoapi/availability-cache.json`), `ACPTOAPI_AVAILABILITY_PERSIST=0` (disable disk persistence of per-model health data; default on).
 
-**Daemon spawn overrides** (shell strings, lib/acp-launcher.js): `KILO_ACP_CMD`, `OPENCODE_ACP_CMD`, `QWEN_CODE_ACP_CMD`, `CODEX_CLI_ACP_CMD`, `COPILOT_CLI_ACP_CMD`, `CLINE_ACP_CMD`, `HERMES_ACP_CMD`, `CURSOR_ACP_CMD`, `CODEIUM_ACP_CMD`, `ACP_CLI_CMD`. Opt out of all autolaunch with `ACPTOAPI_DISABLE_ACP_AUTOLAUNCH=1`.
+**Daemon spawn overrides** (shell strings, lib/acp-launcher.js): `KILO_ACP_CMD`, `OPENCODE_ACP_CMD`, `QWEN_CODE_ACP_CMD`, `CODEX_CLI_ACP_CMD`, `COPILOT_CLI_ACP_CMD`, `CLINE_ACP_CMD`, `HERMES_ACP_CMD`, `CURSOR_ACP_CMD`, `CODEIUM_ACP_CMD`, `ACP_CLI_CMD`. Opt out of all autolaunch with `ACPTOAPI_ENABLE_ACP_AUTOLAUNCH=0`.
 
 **Provider keys** (lib/keyring.js  - multi-key): primary `<PROVIDER>_API_KEY`, additional `<PROVIDER>_API_KEY_1`..`_99`, JSON-array escape hatch `ACPTOAPI_KEYS_<ENVKEY>=["k1","k2"]`. See the Multi-key section above for the full provider->envKey table.
 
