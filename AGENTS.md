@@ -545,6 +545,15 @@ Distinct from `lib/sampler.js`'s per-provider-**prefix** circuit breaker (which 
 
 `GET /v1/availability` returns `{ availability: [{model, ok, successStreak, failStreak, totalSamples, avgLatencyMs, lastSuccessTs, lastFailTs, rank}, ...] }` sorted by descending `rank`, mirroring the shape of `GET /v1/sampler/status` but at model granularity instead of provider-prefix granularity.
 
+### Disk persistence (2026-07-02)
+
+The exported singleton (`_singleton = createAvailabilityTracker({ persist: true })`) hydrates its Map from `~/.acptoapi/availability-cache.json` on module load and periodically flushes back to disk, so learned health data survives server restarts  - the common `bunx`/`npx` cold-start usage pattern otherwise threw away all ranking signal every run. Direct calls to `createAvailabilityTracker()` (no args) default to `persist: false`  - only the module's exported singleton persists, mirroring how most callers (`lib/auto-chain.js`, `lib/chain-machine.js`, `lib/server.js`) consume the module-level `recordSuccess`/`recordFailure`/etc. functions rather than the factory directly.
+
+- **Save trigger**: batched write every `SAVE_EVERY_N_RECORDS = 10` `recordSuccess`/`recordFailure` calls (a plain counter, not a `setInterval`/TTL like `model-probe-live.js`'s probe cache)  - chosen because there is no natural polling cadence to hook a timer to here (recordSuccess/recordFailure fire per chain-link attempt, potentially many times per second under load), so a write-count batch bounds the worst-case data-loss window (<=9 unsaved records) without managing/unref'ing a timer.
+- **`reset(model)`** also clears the on-disk file (single-model reset rewrites the file minus that model; full reset deletes the file)  - keeps `test.js`'s `av.reset()`-then-assert pattern correct even if a stale cache file exists in the environment.
+- **`flush()`**  - exported alongside the other singleton functions for callers that want to force an immediate write (e.g. before graceful shutdown) instead of waiting for the batch counter.
+- Env vars: `ACPTOAPI_AVAILABILITY_CACHE_PATH` (default `~/.acptoapi/availability-cache.json`), `ACPTOAPI_AVAILABILITY_PERSIST=0` (opt out of disk persistence entirely; default on).
+
 ## Configuration  - ~/.acptoapi directory + env vars
 
 ### ~/.acptoapi/ directory structure
@@ -558,6 +567,7 @@ All config files live under `~/.acptoapi/` (`os.homedir()`), each independently 
 | `chains.json` | lib/named-chains.js:40 | `ACPTOAPI_CHAINS_PATH` | `{ "<name>": ["model/a", "model/b", ...] }`  - runtime named chains, merged OVER built-ins. |
 | `probe-cache.json` | lib/model-probe-live.js:20 | `ACPTOAPI_PROBE_CACHE_PATH` | `{ "<provider/model>": { ok: bool, ts: <ms> } }`  - live-probe working set, persists across reboots so cold `bunx` invocations skip warmup. |
 | `acp-probe-cache.json` | lib/auto-chain.js:248 | `ACPTOAPI_ACP_PROBE_CACHE` | `{ "<daemon>": { ok, ts } }`  - ACP daemon reachability cache (24h TTL default). |
+| `availability-cache.json` | lib/availability.js | `ACPTOAPI_AVAILABILITY_CACHE_PATH` | `{ "<provider/model>": {model, ok, successStreak, failStreak, totalSamples, avgLatencyMs, lastSuccessTs, lastFailTs} }`  - per-model live health tracking, persists across reboots. Opt out with `ACPTOAPI_AVAILABILITY_PERSIST=0`. |
 
 ### Resolution precedence
 
@@ -570,7 +580,7 @@ All config files live under `~/.acptoapi/` (`os.homedir()`), each independently 
 
 **Live probe** (lib/model-probe-live.js): `ACPTOAPI_LIVE_PROBE=1` (force live chain on cold cache; per-request via `x-live-probe: 1` header), `ACPTOAPI_DISABLE_PROBE=1` (disable startup background probe), `ACPTOAPI_PROBE_CAP=N` (max models/provider, default 100), `ACPTOAPI_PROBE_CONCURRENCY=N` (in-flight probes, default 12), `ACPTOAPI_PROBE_TTL_MS=N` (default 600000 = 10min), `ACPTOAPI_PROBE_OLLAMA=1` (include local ollama), `ACPTOAPI_ACP_PROBE_TTL_MS=N` (ACP cache TTL, default 86400000 = 24h), `ACPTOAPI_PROBE_INTERVAL_MS=N` (sampler interval, default 3600000 = 1h).
 
-**Routing**: `PROVIDER_ORDER=a,b,c` (override auto-chain priority order; only env-keyed providers appear). `ACPTOAPI_DISABLE_AVAILABILITY_RANK=1` (disable live per-model health reordering in `buildAutoChain`; see Invisible fallback + live availability tracking). `ACPTOAPI_FREE_TIER_MODE=1` (opt-in: after all other `buildAutoChain` sorting, stably move free-tier links - ollama, kilo, opencode, gemini, groq, and any `openrouter/*:free`-style model id - to the head of the chain, ahead of paid/premium links; unset is byte-identical to default ordering).
+**Routing**: `PROVIDER_ORDER=a,b,c` (override auto-chain priority order; only env-keyed providers appear). `ACPTOAPI_DISABLE_AVAILABILITY_RANK=1` (disable live per-model health reordering in `buildAutoChain`; see Invisible fallback + live availability tracking). `ACPTOAPI_FREE_TIER_MODE=1` (opt-in: after all other `buildAutoChain` sorting, stably move free-tier links - ollama, kilo, opencode, gemini, groq, and any `openrouter/*:free`-style model id - to the head of the chain, ahead of paid/premium links; unset is byte-identical to default ordering). `ACPTOAPI_AVAILABILITY_CACHE_PATH` (path override for the on-disk availability health cache, default `~/.acptoapi/availability-cache.json`), `ACPTOAPI_AVAILABILITY_PERSIST=0` (disable disk persistence of per-model health data; default on).
 
 **Daemon spawn overrides** (shell strings, lib/acp-launcher.js): `KILO_ACP_CMD`, `OPENCODE_ACP_CMD`, `QWEN_CODE_ACP_CMD`, `CODEX_CLI_ACP_CMD`, `COPILOT_CLI_ACP_CMD`, `CLINE_ACP_CMD`, `HERMES_ACP_CMD`, `CURSOR_ACP_CMD`, `CODEIUM_ACP_CMD`, `ACP_CLI_CMD`. Opt out of all autolaunch with `ACPTOAPI_DISABLE_ACP_AUTOLAUNCH=1`.
 
@@ -622,6 +632,7 @@ Default base `http://127.0.0.1:4800` (set by `--port`/`PORT`). All endpoints are
 | `GET /v1/keyring/status` | `{ providers: [{provider, envKey, keys: [{index, key (masked 'prefix...suffix'), ok, failCount, lastFailedAt, lastReason, inBackoff, nextRetryInMs}]}] }`  - per-key health (server.js:988). |
 | `GET /v1/cache/stats`, `POST /v1/cache/clear` | Response-cache stats / clear (server.js:1002). |
 | `GET /v1/pretest/stats`, `POST /v1/pretest/run` | Pretest stats / run-once (server.js:1004). |
+| `GET /debug/why?model=<id>` | `{ model, prefix, rest, wouldBeSelectable, blockers: [{layer: 'sampler'|'keyring', detail}], score, scored, availability, matrixNote }`  - unifies sampler backoff + keyring key availability into a single gating verdict for one model id; `score`/`availability` are informational only and never affect `wouldBeSelectable`; matrix scoring is request-scoped and not evaluated here. Requires `ACPTOAPI_API_KEY` like `/debug/config`. |
 
 ### Example curls
 
