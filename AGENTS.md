@@ -254,7 +254,7 @@ registerDaemon('my-daemon', 9999, [
 
 ### Priority Order
 
-Default: `anthropic, openrouter, groq, nvidia, cerebras, sambanova, mistral, codestral, qwen, zai, cloudflare, gemini, opencode-zen, ollama, kilo, opencode, qwen-code, codex-cli, copilot-cli, cline, hermes-agent, cursor-acp, codeium-cli, acp-cli`
+Default: `anthropic, openrouter, groq, nvidia, cerebras, sambanova, mistral, codestral, qwen, zai, cloudflare, gemini, bedrock, opencode-zen, opencode-north, opencode, mimo, ollama, kilo, qwen-code, codex-cli, copilot-cli, cline, hermes-agent, cursor-acp, codeium-cli, acp-cli, chatjimmy`
 
 - Direct API providers (anthropic, gemini) come first by priority
 - Brand providers (groq, nvidia, etc.) ranked by `PROVIDER_ORDER` env if set
@@ -367,9 +367,11 @@ Persistent test server at c:\dev\nim (copy of .env, start.bat launcher script):
 - **Health check**: `curl http://127.0.0.1:4900/health` returns 200 with backends list. Confirms server is up.
 - **Daemon launch**: Do NOT use `nohup cmd //c start.bat &` from bash  - leaves a dead shell. Instead use Node `spawn({ detached: true, stdio: ['ignore', fileHandle, fileHandle] })` for a real persistent daemon.
 
-## model-resolver.js + dynamic defaults (2026-05-12)
+## Model resolution + dynamic defaults (2026-05-12)
 
-`lib/model-resolver.js` resolves a `<provider>/<model>` string to `{provider, model, env, url}`. `PROVIDER_KEYS` (env var per provider) and `PROVIDER_DEFAULTS` (default model per provider) are exported from `lib/provider-maps.js` and re-exported from `acptoapi` root. Freddie consumes both via `createRequire(import.meta.url)` in `src/agent/llm_resolver.js`  - single source of truth for the 17 supported providers (anthropic, openai, groq, google, mistral, cerebras, nvidia, openrouter, sambanova, codestral, zai, qwen, cloudflare, opencode, kilo, claude-cli, ollama).
+`resolveModel(model)` (`lib/sdk.js:21`) resolves a `<provider>/<model>` string to `{provider, model, env, url}`. `splitPrefix` (`lib/sdk.js`) does the prefix/rest split; `resolveQueue` (`lib/queues.js:38`) resolves `queue/<name>` strings; `splitBrandModel` is duplicated independently in `lib/server.js` and `lib/passthrough.js` (NOT a single shared implementation - keep these in sync manually if the split logic changes). Note: `lib/model-resolver.js` is a DIFFERENT module - it probes live models per-provider to pick a strong dynamic default and caches to `~/.acptoapi/models-cache.json`; it is unrelated to the `<provider>/<model>` string-parsing functions above despite the similar name.
+
+`PROVIDER_KEYS` (env var per provider) and `PROVIDER_DEFAULTS` (default model per provider) are exported from `lib/provider-maps.js` and re-exported from `acptoapi` root. Freddie consumes both via `createRequire(import.meta.url)` in `src/agent/llm_resolver.js`  - single source of truth for the 17 supported providers (anthropic, openai, groq, google, mistral, cerebras, nvidia, openrouter, sambanova, codestral, zai, qwen, cloudflare, opencode, kilo, claude-cli, ollama).
 
 Default model selection: if caller passes only `provider`, resolver fills in `PROVIDER_DEFAULTS[provider]`. Updates to the defaults table land in this repo, propagate to freddie on next `npm install` (or `node scripts/sync-upstream.mjs`).
 
@@ -419,7 +421,7 @@ Each attempt is given 600ms to fail-fast (ENOENT, immediate exit) before moving 
 
 ## Default fallback order (2026-05-13)
 
-`lib/auto-chain.js` DEFAULT_ORDER = `anthropic, openrouter, groq, nvidia, cerebras, sambanova, mistral, codestral, qwen, zai, cloudflare, gemini, opencode-zen, ollama, kilo, opencode, claude`. `claude` (CLI) is always last. `kilo`/`opencode` (ACP daemons) come before `claude`. Direct API providers fill the head of the chain in priority order (env-key presence required). Override the whole order with `PROVIDER_ORDER=a,b,c`.
+`lib/auto-chain.js` DEFAULT_ORDER = `anthropic, openrouter, groq, nvidia, cerebras, sambanova, mistral, codestral, qwen, zai, cloudflare, gemini, bedrock, opencode-zen, opencode-north, opencode, mimo, ollama, kilo, qwen-code, codex-cli, copilot-cli, cline, hermes-agent, cursor-acp, codeium-cli, acp-cli, chatjimmy`. There is no `claude` (CLI) entry  - the CLI-spawn path was removed from this repo's scope (see "Scope" section above); `chatjimmy` (always available, no key required) is now the last entry. ACP daemons (`kilo`, `qwen-code`, `codex-cli`, `copilot-cli`, `cline`, `hermes-agent`, `cursor-acp`, `codeium-cli`, `acp-cli`) and always-available built-ins (`ollama`, `opencode`, `chatjimmy`) fill out the tail; direct API/brand providers fill the head in priority order (env-key presence required via `hasProvider()`). Override the whole order with `PROVIDER_ORDER=a,b,c`.
 
 ## Error Classification  - fallback reasons (lib/chain-machine.js, lib/sampler.js, lib/keyring.js)
 
@@ -467,6 +469,62 @@ Two layers, distinct granularity:
 ### Content policy behavior
 
 `content_policy` (message matches `/content.?policy|safety|blocked/i`) is a first-class reason. It does NOT trip the sampler breaker by default (it is not in the per-link `fallbackOn` of built-in chains, so for those it is terminal). For chains using the default full `FALLBACK_REASONS`, a content-policy refusal advances to the next link  - useful when one provider's safety filter rejects a prompt another provider accepts. It is never silently swallowed: it lands in `chainHistory` with `reason: 'content_policy'`.
+
+## HTTP error taxonomy (lib/errors.js)  - distinct from the chain-fallback reason enum above
+
+This is a **different `classifyError`** from the one in `lib/chain-machine.js` documented in the section above. `chain-machine.js::classifyError(err)` maps a thrown JS error to one of the `FALLBACK_REASONS` strings used to decide chain advancement. `errors.js::classifyError(status, message, provider)` is unrelated in purpose: it maps a raw HTTP status code + message string to a typed `BridgeError` subclass, used for structured error reporting to SDK callers (not for chain routing decisions). The two do not call each other and the reason-string vocabulary (`'rate_limit'`, `'auth'`, ...) is not the same object as the error-class vocabulary (`RateLimitError`, `AuthError`, ...), though the names rhyme.
+
+### classifyError(status, message, provider) mapping (lib/errors.js:74-84)
+
+```js
+function classifyError(status, message, provider) {
+  const opts = { status, provider };
+  const msg = message || '';
+  if (status === 401 || status === 403) return new AuthError(msg, opts);
+  if (status === 429) return new RateLimitError(msg, opts);
+  if (status === 408 || /timeout/i.test(msg)) return new TimeoutError(msg, opts);
+  if (status === 413 || /context.?length|token.?limit|too.?long/i.test(msg)) return new ContextWindowError(msg, opts);
+  if (status === 451 || /safety|blocked|content.?policy|harmful/i.test(msg)) return new ContentPolicyError(msg, opts);
+  if (typeof status === 'number' && status >= 500) return new ProviderError(msg, { ...opts, retryable: true });
+  return new BridgeError(msg, { ...opts, retryable: false });
+}
+```
+
+Order matters  - checks run top-to-bottom, first match wins. Message-pattern checks (`timeout`, `context.?length`, `safety`) are fallbacks for providers that don't set the matching numeric status.
+
+### Error class shapes
+
+All classes extend `BridgeError`, declared in both `lib/errors.js` and `index.d.ts`. Every instance carries:
+
+- `message`  - passed through `redactKeys()` first, so API keys embedded in upstream error bodies are masked to `...<last4>` before ever reaching a log or caller.
+- `status`  - the HTTP status code (or `undefined` if not status-derived).
+- `code`  - optional caller-supplied code, not set by `classifyError` itself.
+- `retryable`  - boolean, defaulted per-class (see table below); can be overridden via the `opts` object passed to the constructor.
+- `provider`  - the provider name string passed through from the caller.
+- `headers`  - optional, used by `parseRetryAfterHeader` to read a `retry-after` header off the original response.
+- `name`  - set per subclass (`'AuthError'`, `'RateLimitError'`, etc.) instead of the default `'Error'`.
+
+| Class | Trigger | `retryable` |
+|-------|---------|--------------|
+| `AuthError` | 401 / 403 | `false` |
+| `RateLimitError` | 429 | `true` |
+| `TimeoutError` | 408 or `/timeout/i` in message | `true` |
+| `ContextWindowError` | 413 or `/context.?length\|token.?limit\|too.?long/i` | `false` |
+| `ContentPolicyError` | 451 or `/safety\|blocked\|content.?policy\|harmful/i` | `false` |
+| `ProviderError` | status >= 500 | `true` |
+| `BridgeError` (fallthrough) | anything else | `false` |
+
+`index.d.ts` (lib/errors.js:110-125) declares the same shape: `BridgeError` extends `Error` with `status`, `code`, `retryable`, `provider`, `headers` fields, and `AuthError`/`RateLimitError`/`TimeoutError`/`ContextWindowError`/`ContentPolicyError`/`ProviderError` are declared as empty subclasses (`extends BridgeError {}`)  - the distinguishing behavior (default `retryable` value, `name`) lives only in the `.js` runtime, not in the type declarations. `GeminiError` is a bare alias for `BridgeError` (`const GeminiError = BridgeError`), not a real subclass.
+
+`isRetryable(err)` (errors.js:86) prefers `err.retryable` when `err instanceof BridgeError`; for plain (non-`BridgeError`) errors it falls back to inspecting `status`/`code` for `429`/`>=500` or matching `/quota|rate.?limit|overloaded|unavailable/i` in the message. `withRetry(fn, maxRetries=3)` (errors.js:120) is the only consumer wired to this taxonomy today  - it retries with exponential backoff (capped 16s, jittered) honoring any `Retry-After` header or Gemini-style `RetryInfo` detail parsed by `parseRetryDelay`.
+
+### Relationship to the chain-fallback reason enum
+
+These are separate concerns that happen to overlap in vocabulary:
+
+- The chain-machine reason enum (`FALLBACK_REASONS`) decides whether the **chain** advances to the next link.
+- The `errors.js` class taxonomy decides how an error is **reported/retried** once it reaches an SDK caller (e.g. via `withRetry`), independent of whether a multi-link chain is in play at all.
+- Nothing in `lib/chain-machine.js` constructs or inspects `BridgeError` subclasses, and nothing in `lib/errors.js` reads `FALLBACK_REASONS` or calls `sampler`/`keyring`. A caller could in principle use `withRetry` around a single (non-chain) `queue/`/`chain/` model call and get both behaviors, but they are not integrated  - `classifyError` (errors.js) is not invoked anywhere inside the chain-machine fallback path today.
 
 ## Invisible fallback + live availability tracking (lib/availability.js, 2026-07-02)
 
