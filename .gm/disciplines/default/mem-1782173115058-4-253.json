@@ -1,0 +1,3 @@
+## Resolved mutable: mut-1779189525503
+
+lib/keyring.js:49 getKeys(envKey) calls _collectFromEnv(envKey); lines 22-46 show collection from primary env var, indexed variants GROQ_API_KEY_1..GROQ_API_KEY_99, and ACPTOAPI_KEYS_<NAME> JSON array escape hatch

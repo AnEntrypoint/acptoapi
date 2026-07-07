@@ -1,0 +1,3 @@
+## Resolved mutable: mut-1779191555989
+
+ls site/content/pages/home.yaml -> exists; design-kit YAML source present in working tree.

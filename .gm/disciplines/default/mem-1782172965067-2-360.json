@@ -1,0 +1,3 @@
+## Resolved mutable: mut-1779189525525
+
+lib/server.js:18 requires keyring module; all brand and ACP chat handlers route through keyring.getKeys(), keyring.listUsable(), keyring.markKeyFailed(); grep shows only 3 process.env direct reads: lib/auto-chain.js:envKey usage, lib/config.js:template expansion, lib/server.js:debug logging (none are provider API keys)
