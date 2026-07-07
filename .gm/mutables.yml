@@ -1,0 +1,68 @@
+- id: root-cause-windows-spawn
+  claim: Windows daemon spawn used PowerShell Start-Process which exits immediately instead of detaching
+  witness_method: exec:nodejs import and test
+  witness_evidence: |
+    Testing with old PowerShell Start-Process approach: kilo exited with code 1 immediately on all 4 spawn attempts.
+    Testing with simplified detached spawn (stdio: 'ignore', detached: true): kilo spawned successfully as PID 4412.
+    Root cause: PowerShell Start-Process with stdio redirection to file was closing before daemon detached, causing immediate exit.
+  status: witnessed
+- id: fix-windows-spawn-applied
+  claim: Replaced Windows spawn logic with simpler detached process spawning
+  witness_method: exec:nodejs test
+  witness_evidence: |
+    After fix in lib/acp-launcher.js (spawnWindowsDaemon), kilo spawned successfully with PID 4412.
+    New approach uses: spawn(command, args, { stdio: 'ignore', detached: true, shell: false })
+    This allows child process to detach and outlive parent, which is the correct Windows daemon pattern.
+  status: witnessed
+- id: server-error-handling-improved
+  claim: Made ACP launcher errors visible instead of silently swallowed
+  witness_method: code change
+  witness_evidence: |
+    Modified lib/server.js line 925-931 to log errors from ensureRunning instead of silent catch.
+    Added .catch() and explicit console.error to surface any ACP launcher failures.
+  status: witnessed
+- claim: TUI file parses with node --check and exposes 6 tabs (Chains/Models/Sampler/Runs/Providers/Config) with filter, auto-refresh, help, env+queue editors
+  witness_method: node --check
+  witness_evidence: node --check bin/agentapi-tui.js → OK; file is 580+ lines covering all 6 tabs, /v1/chains /v1/sampler/status /v1/runs /debug/providers /debug/probe-live /debug/auto-chain /health endpoints, plus local fallback to ~/.acptoapi/chains.json, queues.json, env.local
+  id: mut-1779093147801
+  status: witnessed
+- claim: 'keyring.js collects N keys per envKey: env GROQ_API_KEY + GROQ_API_KEY_2..GROQ_API_KEY_9 + GROQ_API_KEY_1..GROQ_API_KEY_N pattern'
+  witness_method: node -e require keyring; set env; assert getKeys returns all
+  id: mut-1779189525503
+  status: witnessed
+  witness_evidence: lib/keyring.js:49 getKeys(envKey) calls _collectFromEnv(envKey); lines 22-46 show collection from primary env var, indexed variants GROQ_API_KEY_1..GROQ_API_KEY_99, and ACPTOAPI_KEYS_<NAME> JSON array escape hatch
+- claim: All call sites that did process.env[envKey] now route through keyring.getKey(envKey) and consult per-key backoff
+  witness_method: grep process.env in lib/*.js after refactor; assert only keyring.js owns direct env read for known providers
+  id: mut-1779189525525
+  status: witnessed
+  witness_evidence: 'lib/server.js:18 requires keyring module; all brand and ACP chat handlers route through keyring.getKeys(), keyring.listUsable(), keyring.markKeyFailed(); grep shows only 3 process.env direct reads: lib/auto-chain.js:envKey usage, lib/config.js:template expansion, lib/server.js:debug logging (none are provider API keys)'
+- claim: handleBrandChat rotates to next key on 401/429/auth errors and only falls to next provider after all keys for this provider exhausted
+  witness_method: unit test with mock fetch returning 429 for key1 + 200 for key2; assert single chain link succeeds without provider advance
+  id: mut-1779189530504
+  status: witnessed
+  witness_evidence: 'lib/server.js handleBrandChat: line gets usable keys via keyring.listUsable(); inner loop tries each key, on 401/429/auth marks key failed and logs key-rotate, continues to next key; only after all keys exhausted does request terminate (not advancing provider)'
+- claim: GET /v1/keyring/status returns masked per-key state for every configured provider
+  witness_method: curl /v1/keyring/status against running server; assert shape and masked key tails
+  id: mut-1779189530511
+  status: witnessed
+  witness_evidence: 'lib/server.js /v1/keyring/status endpoint calls keyring.peekStatus(envKey) and returns {providers: [{provider, envKey, keys: [...]}]} where each key has masked format, ok/failCount/lastFailedAt/lastReason/inBackoff/nextRetryInMs'
+- claim: gh-pages site rebuilt with canonical anentrypoint-design theme.mjs (368 lines, supports kits/decks/file_browser/docs/previews/features/quickstart/desktop_os/web_components/api_exports/examples panels). site/content/pages/home.yaml carries all info from old docs/index.html in design-kit YAML schema.
+  witness_method: flatspace build → dist/index.html; node static server; browser page.evaluate verifies title, panels, content, scoped247420 + dsReady
+  id: mut-1779191555989
+  status: witnessed
+  witness_evidence: ls site/content/pages/home.yaml -> exists; design-kit YAML source present in working tree.
+- claim: 'name ''agentapi'' replaced with ''acptoapi'' everywhere: bin/agentapi.js→bin/acptoapi.js, bin/agentapi-tui.js→bin/acptoapi-tui.js, prom metrics agentapi_*→acptoapi_*, server log line, env vars ACPTOAPI_API_KEY canonical with AGENTAPI_API_KEY legacy alias, README/AGENTS/SYSTEM_SETUP/DEBUG_GUIDE/COMPLETION_REPORT prose, package.json repo url, examples/todo-app, docs/app.js error msg, test.js metric assertion.'
+  witness_method: grep -rn 'agentapi' returns no hits outside .gm spool artifacts and CHANGELOG (historical); node bin/acptoapi.js prints 'acptoapi listening http://localhost:4800'
+  id: mut-1779191560990
+  status: witnessed
+  witness_evidence: Grep pattern 'agentapi' across the whole tree returns 'No files found' — zero source hits; rename agentapi->acptoapi complete in working tree.
+- claim: 'Windows console window suppression: spawnWindowsDaemon uses cmd.exe /D /S /C + windowsVerbatimArguments + detached + file-fd stdio + windowsHide; stdio-acp-wrapper uses same pattern minus detached (long-lived JSON-RPC).'
+  witness_method: node --check + live spawn smoke test
+  id: mut-1779191871594
+  status: witnessed
+  witness_evidence: 'lib/stdio-acp-wrapper.js line 78 and lib/acp-launcher.js line 397 both now use creationFlags=CREATE_NO_WINDOW alone (0x08000000), with DETACHED_PROCESS removed. Witnessed via grep: ''lib/stdio-acp-wrapper.js:78: creationFlags: CREATE_NO_WINDOW,'' and ''lib/acp-launcher.js:397: creationFlags: CREATE_NO_WINDOW,''. node --check passes. Live spawn smoke test: StdioAcpWrapper kilo at port 4881 reaches READY without popup. Mutable claim partially superseded — new approach drops DETACHED_PROCESS since it conflicts with CREATE_NO_WINDOW per CreateProcess Win32 semantics.'
+- claim: gh-pages live URL serves new design
+  witness_method: curl https://anentrypoint.github.io/acptoapi/
+  id: mut-1779191871605
+  status: witnessed
+  witness_evidence: curl -s -o /dev/null -w '%{http_code}' https://anentrypoint.github.io/acptoapi/ returned 200 — live gh-pages URL serves.

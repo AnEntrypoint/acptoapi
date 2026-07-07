@@ -289,6 +289,364 @@ test('anthropic image block: url source', () => {
     assert(n2 === null, 'no source returns null');
 });
 
+// ---- extra-providers: file parsing + URL resolution (no network) ----
+test('extra-providers: parseBaseURL handles bare hostname, full URL, no trailing slash', () => {
+    const { parseBaseURL } = require('./lib/extra-providers');
+    assert(parseBaseURL('my-host.com').host === 'my-host.com', 'bare hostname');
+    assert(parseBaseURL('https://my-host.com').host === 'my-host.com', 'full URL');
+    assert(parseBaseURL('http://my-host.com/v1').path === '/v1', 'path preserved');
+    assert(parseBaseURL('my-host.com/').host === 'my-host.com', 'trailing slash stripped');
+});
+
+test('extra-providers: candidateChatURLs generates multiple candidates', () => {
+    const { parseBaseURL, candidateChatURLs } = require('./lib/extra-providers');
+    const urls = candidateChatURLs(parseBaseURL('my-host.com'));
+    assert(Array.isArray(urls), 'should return array');
+    assert(urls.length >= 2, 'at least 2 candidates');
+    assert(urls.some(u => u.includes('/chat/completions')), 'all candidates end in chat/completions');
+    assert(urls.filter(u => u.includes('/chat/completions')).length === urls.length, 'all should end with chat/completions');
+    // No duplicates
+    assert(urls.length === new Set(urls.map(u => u.toLowerCase())).size, 'duplicate candidates');
+});
+
+test('extra-providers: candidateMessagesURLs generates multiple candidates', () => {
+    const { parseBaseURL, candidateMessagesURLs } = require('./lib/extra-providers');
+    const urls = candidateMessagesURLs(parseBaseURL('my-host.com'));
+    assert(Array.isArray(urls), 'should return array');
+    assert(urls.length >= 2, 'at least 2 candidates');
+    assert(urls.every(u => u.includes('/messages')), 'all candidates end in /messages');
+});
+
+test('extra-providers: candidateChatURLs short-circuits on known suffix', () => {
+    const { parseBaseURL, candidateChatURLs } = require('./lib/extra-providers');
+    const urls = candidateChatURLs(parseBaseURL('https://api.example.com/v1/chat/completions'));
+    assert(urls.length === 1, 'exact chat/completions URL returns single candidate');
+    assert(urls[0] === 'https://api.example.com/v1/chat/completions', 'returns exact URL');
+});
+
+test('extra-providers: parseProviderFile TSV format with 3+ cols', () => {
+    const ep = require('./lib/extra-providers');
+    const text = 'my-host.com\tsk-test-abc123\tmodel-a model-b\n# comment\nother.com\tsk-other-xyz\tmodel-c';
+    const entries = ep.parseProviderFile(text);
+    assert(entries.length === 2, 'expected 2 entries');
+    assert(entries[0].baseURL === 'my-host.com', 'first entry URL');
+    assert(entries[0].apiKey === 'sk-test-abc123', 'first entry key');
+    assert.deepStrictEqual(entries[0].models, ['model-a', 'model-b'], 'first entry models');
+    assert(entries[1].baseURL === 'other.com', 'second entry URL');
+    assert.deepStrictEqual(entries[1].models, ['model-c'], 'second entry models');
+});
+
+test('extra-providers: parseProviderFile interleaved format (URL then key)', () => {
+    const ep = require('./lib/extra-providers');
+    const text = 'my-host.com\nsk-test-abc123\nother.com\nsk-other-xyz';
+    const entries = ep.parseProviderFile(text);
+    assert(entries.length === 2, 'expected 2 entries');
+    assert(entries[0].baseURL === 'my-host.com', 'first URL');
+    assert(entries[0].apiKey === 'sk-test-abc123', 'first key');
+    assert(entries[1].baseURL === 'other.com', 'second URL');
+    assert(entries[1].apiKey === 'sk-other-xyz', 'second key');
+});
+
+test('extra-providers: parseProviderFile tab-pair format (2 cols)', () => {
+    const ep = require('./lib/extra-providers');
+    const text = 'my-host.com\tsk-test-abc123\nother.com\tsk-other-xyz';
+    const entries = ep.parseProviderFile(text);
+    assert(entries.length === 2, 'expected 2 entries');
+    assert(entries[0].baseURL === 'my-host.com', 'first URL');
+    assert(entries[0].apiKey === 'sk-test-abc123', 'first key');
+});
+
+test('extra-providers: parseProviderFile skips comments and blank lines', () => {
+    const ep = require('./lib/extra-providers');
+    const text = '\n  \n# comment\nmy-host.com\tsk-test-abc123\tmodel-a\n\n# another\nother.com\tsk-other-xyz';
+    const entries = ep.parseProviderFile(text);
+    assert(entries.length === 2, 'expected 2 entries');
+});
+
+test('extra-providers: parseProviderFile handles models with trailing +N count', () => {
+    const ep = require('./lib/extra-providers');
+    const text = 'my-host.com\tsk-test-abc123\tmodel-a model-b +338';
+    const entries = ep.parseProviderFile(text);
+    assert(entries.length === 1, 'expected 1 entry');
+    assert.deepStrictEqual(entries[0].models, ['model-a', 'model-b'], '+N stripped from models');
+});
+
+test('extra-providers: parseModelNames strips empty and returns array', () => {
+    const { parseModelNames } = require('./lib/extra-providers');
+    assert.deepStrictEqual(parseModelNames(''), [], 'empty string');
+    assert.deepStrictEqual(parseModelNames(null), [], 'null');
+    assert.deepStrictEqual(parseModelNames('a b c'), ['a', 'b', 'c'], 'simple');
+    assert.deepStrictEqual(parseModelNames('model-a\tmodel-b'), ['model-a', 'model-b'], 'tab separated');
+});
+
+test('extra-providers: maskKey short and normal keys', () => {
+    const ep = require('./lib/extra-providers');
+    assert(ep.maskKey('abc') === 'ab***', 'short key');
+    assert(ep.maskKey('sk-test-abc123def456') === 'sk-t...f456', 'normal key');
+    assert(ep.maskKey('') === '', 'empty');
+});
+
+// ---- extra-providers: witness with local HTTP server ----
+async function extraProviderWitness() {
+    process.env.ACPTOAPI_ENABLE_ACP_AUTOLAUNCH = '0';
+    // Create a local HTTP server that speaks both OpenAI and Anthropic formats
+    // for probing. This is a REAL backend — no mocks.
+    const extraServer = http.createServer((req, res) => {
+        const url = req.url;
+        const method = req.method;
+
+        // OpenAI /v1/models endpoint (for auto-discovery)
+        if (url.endsWith('/models') && method === 'GET') {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                object: 'list',
+                data: [
+                    { id: 'gpt-4o', object: 'model' },
+                    { id: 'gpt-4o-mini', object: 'model' },
+                    { id: 'claude-sonnet-4-6-20250514', object: 'model' },
+                    { id: 'claude-3-5-haiku-latest', object: 'model' },
+                    { id: 'llama-3.3-70b-versatile', object: 'model' },
+                ]
+            }));
+            return;
+        }
+
+        // OpenAI /chat/completions endpoint
+        if (url.endsWith('/chat/completions') && method === 'POST') {
+            let body = '';
+            req.on('data', c => body += c);
+            req.on('end', () => {
+                let model = 'unknown';
+                try { model = JSON.parse(body).model || 'unknown'; } catch {}
+                const status = model === 'fail-me' ? 500 : 200;
+                if (status === 200) {
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({
+                        id: 'chatcmpl-test',
+                        object: 'chat.completion',
+                        created: Date.now(),
+                        model,
+                        choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+                        usage: { prompt_tokens: 2, completion_tokens: 1 },
+                    }));
+                } else {
+                    res.writeHead(status, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: { message: 'simulated failure', type: 'server_error' } }));
+                }
+            });
+            return;
+        }
+
+        // Anthropic /messages endpoint
+        if (url.endsWith('/messages') && method === 'POST') {
+            let body = '';
+            req.on('data', c => body += c);
+            req.on('end', () => {
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                    id: 'msg_test',
+                    type: 'message',
+                    role: 'assistant',
+                    content: [{ type: 'text', text: 'ok' }],
+                    model: 'claude-test',
+                    stop_reason: 'end_turn',
+                    stop_sequence: null,
+                    usage: { input_tokens: 2, output_tokens: 1 },
+                }));
+            });
+            return;
+        }
+
+        // Anything else is 404
+        res.writeHead(404);
+        res.end();
+    });
+
+    const port = await new Promise(resolve => {
+        const s = extraServer.listen(0, '127.0.0.1', () => resolve(s.address().port));
+    });
+    const base = `http://127.0.0.1:${port}`;
+
+    try {
+        await testAsync('extra-providers: discoverOpenAI finds working chat/completions URL', async () => {
+            const ep = freshRequire('./lib/extra-providers');
+            const parsed = ep.parseBaseURL(base);
+            const url = await ep.discoverOpenAI(parsed, 'sk-test-key', 3000);
+            assert(url && url.includes('/chat/completions'), `expected chat/completions URL, got ${url}`);
+        });
+
+        await testAsync('extra-providers: discoverAnthropic finds working messages URL', async () => {
+            const ep = freshRequire('./lib/extra-providers');
+            const parsed = ep.parseBaseURL(base);
+            const url = await ep.discoverAnthropic(parsed, 'sk-test-key', 3000);
+            assert(url && url.includes('/messages'), `expected messages URL, got ${url}`);
+        });
+
+        await testAsync('extra-providers: probeModel returns ok for working model', async () => {
+            const ep = freshRequire('./lib/extra-providers');
+            const chatURL = `${base}/v1/chat/completions`;
+            const result = await ep.probeModel(chatURL, 'sk-test-key', 'good-model', 3000);
+            assert(result.ok === true, `expected ok=true, got ${JSON.stringify(result)}`);
+            assert(typeof result.latencyMs === 'number', 'latencyMs should be a number');
+        });
+
+        await testAsync('extra-providers: probeModel returns failure for bad model', async () => {
+            const ep = freshRequire('./lib/extra-providers');
+            const chatURL = `${base}/v1/chat/completions`;
+            const result = await ep.probeModel(chatURL, 'sk-test-key', 'fail-me', 3000);
+            assert(result.ok === false, `expected ok=false, got ${JSON.stringify(result)}`);
+        });
+
+        await testAsync('extra-providers: probeModels works with stagger', async () => {
+            const ep = freshRequire('./lib/extra-providers');
+            const chatURL = `${base}/v1/chat/completions`;
+            const results = await ep.probeModels(chatURL, 'sk-test-key', ['good-model', 'other-model'], 3000, 50);
+            assert(results.size === 2, 'expected 2 results');
+            const vals = Array.from(results.values());
+            assert(vals[0].ok === true, 'first model ok');
+            assert(vals[1].ok === true, 'second model ok');
+        });
+
+        await testAsync('extra-providers: probeEntry detects both formats and probes models', async () => {
+            const ep = freshRequire('./lib/extra-providers');
+            const entry = { baseURL: base, apiKey: 'sk-test-key', models: ['good-model'] };
+            const result = await ep.probeEntry(entry, 3000, 3000);
+            assert(result.openai && result.openai.includes('/chat/completions'), 'openai URL detected');
+            assert(result.anthropic && result.anthropic.includes('/messages'), 'anthropic URL detected');
+            assert(result.models.size === 1, 'expected 1 model probe result');
+            assert(result.models.get('good-model').ok === true, 'model probe ok');
+        });
+
+        await testAsync('extra-providers: registerOne creates brand, keyring entry, and chain links', async () => {
+            const ep = freshRequire('./lib/extra-providers');
+            const brands = require('./lib/openai-brands');
+            const keyringMod = require('./lib/keyring');
+            ep.unregisterAll();
+
+            const entry = { baseURL: base, apiKey: 'sk-test-key', models: ['good-model', 'fail-me'] };
+            const probeResult = await ep.probeEntry(entry, 3000, 3000);
+            assert(probeResult.openai, 'need openai endpoint for registration');
+
+            const rec = ep.registerOne(entry, probeResult);
+            assert(rec !== null, 'registerOne should succeed');
+            assert(rec.prefix.startsWith('extra-'), `prefix should start with extra-, got ${rec.prefix}`);
+            assert(rec.openaiURL && rec.openaiURL.includes('/chat/completions'), 'openai URL in rec');
+            assert(rec.anthropicURL && rec.anthropicURL.includes('/messages'), 'anthropic URL in rec');
+            assert(rec.workingModels.length === 1, `expected 1 working model, got ${rec.workingModels.length}`);
+            assert(rec.failedModels.length === 1, `expected 1 failed model, got ${rec.failedModels.length}`);
+
+            // Verify brand registration
+            assert(brands.isBrand(rec.prefix) === true, `isBrand(${rec.prefix}) should be true`);
+
+            // Verify keyring has the key
+            const keys = keyringMod.listUsable(rec.envKey);
+            assert(keys.length >= 1, `keyring should have key for ${rec.envKey}`);
+
+            // Verify chain links
+            const links = ep.getChainLinks();
+            assert(links.some(l => l.model.startsWith(rec.prefix)), 'chain links include extra provider');
+
+            // Verify model catalog
+            const catalog = ep.getModelCatalog();
+            assert(catalog.some(m => m.startsWith(rec.prefix)), 'model catalog includes extra provider');
+        });
+
+        await testAsync('extra-providers: loadAndRegister full lifecycle', async () => {
+            // Create a temp file with TSV format pointing at our test server
+            const tmpPath = require('path').join(require('os').tmpdir(), '.acptoapi-test-extra.txt');
+            require('fs').writeFileSync(tmpPath, `${base}\tsk-test-key\tgood-model fail-me\n`, 'utf8');
+
+            // Also point probe cache to a temp file
+            const cachePath = require('path').join(require('os').tmpdir(), '.acptoapi-test-extra-probe-cache.json');
+            process.env.ACPTOAPI_EXTRA_PROBE_CACHE = cachePath;
+
+            const ep = freshRequire('./lib/extra-providers');
+            ep.unregisterAll();
+            delete require.cache[require.resolve('./lib/extra-providers')];
+            const ep2 = require('./lib/extra-providers');
+
+            const results = await ep2.loadAndRegister(tmpPath);
+            assert(results.length >= 1, `expected >=1 registered, got ${results.length}`);
+
+            // Clean up
+            try { require('fs').unlinkSync(tmpPath); } catch {}
+            try { require('fs').unlinkSync(cachePath); } catch {}
+            delete process.env.ACPTOAPI_EXTRA_PROBE_CACHE;
+        });
+
+        await testAsync('extra-providers: tryListModels fetches model list from /v1/models', async () => {
+            const ep = freshRequire('./lib/extra-providers');
+            const models = await ep.tryListModels(`${base}/v1/chat/completions`, 'sk-test-key', 3000);
+            assert(Array.isArray(models), 'should return array');
+            assert(models.length >= 5, 'expected at least 5 models');
+            assert(models.includes('gpt-4o'), 'should include gpt-4o');
+        });
+
+        await testAsync('extra-providers: scoreModelID ranks known models above unknown', () => {
+            const ep = freshRequire('./lib/extra-providers');
+            const known = ep.scoreModelID('gpt-5.5');
+            const unknown = ep.scoreModelID('some-obscure-model-v1');
+            assert(known > unknown, `known model (${known}) should score higher than unknown (${unknown})`);
+        });
+
+        await testAsync('extra-providers: sortModelIDs sorts by quality descending', () => {
+            const ep = freshRequire('./lib/extra-providers');
+            const sorted = ep.sortModelIDs(['gpt-4o-mini', 'gpt-5.5', 'some-junk-model']);
+            assert(sorted[0] === 'gpt-5.5', `expected gpt-5.5 first, got ${sorted[0]}`);
+            assert(sorted[sorted.length - 1] === 'some-junk-model', 'junk model should be last');
+        });
+
+        await testAsync('extra-providers: loadAndRegister auto-discovers models when file has none', async () => {
+            const cachePath = require('path').join(require('os').tmpdir(), '.acptoapi-test-extra-auto-cache.json');
+            const tmpPath = require('path').join(require('os').tmpdir(), '.acptoapi-test-extra-auto.txt');
+            process.env.ACPTOAPI_EXTRA_PROBE_CACHE = cachePath;
+            process.env.ACPTOAPI_EXTRA_MAX_MODELS = '10';
+            delete require.cache[require.resolve('./lib/extra-providers')];
+
+            require('fs').writeFileSync(tmpPath, `${base}\tsk-test-key\n`, 'utf8');
+            const { loadAndRegister, unregisterAll, listRegistered } = require('./lib/extra-providers');
+            unregisterAll();
+            const results = await loadAndRegister(tmpPath);
+
+            assert(results.length >= 1, 'should register at least one entry');
+            for (const rec of results) {
+                const hasProbedModels = rec.workingModels.length > 0 || rec.failedModels.length > 0;
+                const hasUntested = rec.untestedModels.length > 0;
+                assert(hasProbedModels || hasUntested, `entry ${rec.prefix} should have probed or untested models, got working=${rec.workingModels.length} failed=${rec.failedModels.length} untested=${rec.untestedModels.length}`);
+            }
+
+            try { require('fs').unlinkSync(tmpPath); } catch {}
+            try { require('fs').unlinkSync(cachePath); } catch {}
+            delete process.env.ACPTOAPI_EXTRA_PROBE_CACHE;
+            delete process.env.ACPTOAPI_EXTRA_MAX_MODELS;
+        });
+
+        await testAsync('extra-providers: probe cache persists to disk via loadAndRegister', async () => {
+            const cachePath = require('path').join(require('os').tmpdir(), '.acptoapi-test-extra-probe-cache3.json');
+            const tmpPath = require('path').join(require('os').tmpdir(), '.acptoapi-test-extra-cache3.txt');
+            process.env.ACPTOAPI_EXTRA_PROBE_CACHE = cachePath;
+            delete require.cache[require.resolve('./lib/extra-providers')];
+
+            require('fs').writeFileSync(tmpPath, `${base}\tsk-test-key\tgood-model\n`, 'utf8');
+            const { loadAndRegister, unregisterAll } = require('./lib/extra-providers');
+            unregisterAll();
+            await loadAndRegister(tmpPath);
+
+            assert(require('fs').existsSync(cachePath), 'cache file should exist after probe');
+            const cacheContents = JSON.parse(require('fs').readFileSync(cachePath, 'utf8'));
+            // sk-test-key (11 chars) → slice(0,4)='sk-t', slice(-4)='-key' → 'sk-t...-key'
+            const cacheKey = `${base}|sk-t...-key`;
+            assert(cacheContents[cacheKey], `cache should have entry for key "${cacheKey}"`);
+
+            try { require('fs').unlinkSync(tmpPath); } catch {}
+            try { require('fs').unlinkSync(cachePath); } catch {}
+            delete process.env.ACPTOAPI_EXTRA_PROBE_CACHE;
+        });
+    } finally {
+        extraServer.close();
+    }
+}
+
 // ---- sampler backoff integration ----
 test('sampler backoff excludes provider from getAvailableModels', () => {
     process.env.GROQ_API_KEY = 'test-key';
@@ -612,6 +970,8 @@ realBackendSuite()
     .catch(e => { console.error(`[FAIL] realBackendSuite: ${e.message}`); failed++; })
     .then(() => errorResponseWitness())
     .catch(e => { console.error(`[FAIL] errorResponseWitness: ${e.message}`); failed++; })
+    .then(() => extraProviderWitness())
+    .catch(e => { console.error(`[FAIL] extraProviderWitness: ${e.message}`); failed++; })
     .finally(() => {
         console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed`);
         process.exitCode = failed > 0 ? 1 : 0;

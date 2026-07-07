@@ -1,0 +1,10 @@
+---
+key: mem-024efebe6dcb004a-302
+ns: default
+created: 1782172964284
+updated: 1782172964284
+---
+
+## Resolved mutable: mut-1779093147801
+
+node --check bin/agentapi-tui.js → OK; file is 580+ lines covering all 6 tabs, /v1/chains /v1/sampler/status /v1/runs /debug/providers /debug/probe-live /debug/auto-chain /health endpoints, plus local fallback to ~/.acptoapi/chains.json, queues.json, env.local
