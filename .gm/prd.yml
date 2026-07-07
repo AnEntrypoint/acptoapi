@@ -1242,17 +1242,17 @@
   witness: 'Fixed: server.js snapshotAvailabilityRanks(queueLinks) called once, threaded into all 4 recordRunDirect call sites via replace_all on shared ''resolvedLinks: queue, servedBy:'' fragment -> ''resolvedLinks: queue, resolvedLinksWithRank, servedBy:''. chain-machine.js module.exports extended with snapshotAvailabilityRanks. node --check passed both files. Live-verified: restarted server (nim/start.bat), sent /v1/messages request, GET /v1/runs now shows resolvedLinksWithRank:[{model,availabilityRank}...] fully populated for all 12 links, matching parity with the chain-machine FSM path.'
 - id: gitignore-unblock-gm-tracking
   title: Remove blanket .gm/ gitignore and stale managed block; install plugkit-managed block so md corpus, prd.yml, mutables.yml trackable
-  witness: .gitignore:22 '.gm/' blanket ignore; git check-ignore .gm/memories/.flat-export-done -> IGNORED; git ls-files .gm/memories = 0
-  status: pending
+  witness: Removed 11 .gm/disciplines/* lines (codeinsight/codeinsight-vec/codeinsight-manifest/AGENTS.md/AGENTS.md-vec/default/default-vec/rs-learn_graph_edges*/rs-learn_router) from .gitignore managed block. git check-ignore .gm/disciplines/default/mem-*.json now exits 1 (not ignored). Committed+pushed 42e60ca.
+  status: completed
 - id: preexisting-wip-triage
   title: 'Triage pre-existing dirty tree: commit extra-providers feature (lib/extra-providers.js + auto-chain/keyring/model-probe-live/openai-brands/server wiring + test.js additions) after load smoke; revert EOL-only bin/acptoapi-tui.js'
-  witness: git diff --stat 444 insertions across 6 files + untracked lib/extra-providers.js; bin/acptoapi-tui.js EOL-only (absent from diffstat)
-  status: pending
+  witness: 'git log confirms commit 3cdba70 ''feat: extra-providers registry...(pre-existing WIP, load-smoke witnessed)'' already landed this work in a prior turn of this session; lib/extra-providers.js exists+tracked; bin/acptoapi-tui.js clean (git diff empty), EOL-only change already resolved/reverted.'
+  status: completed
 - id: md-corpus-commit-push
   title: Commit md corpus (13 content-hash-keyed md + marker) and push to main, clean tree
-  witness: ls .gm/memories = 13 md all conforming + .flat-export-done; untracked due to gitignore
-  status: pending
+  witness: git ls-files .gm/memories = 16 (15 md + .flat-export-done marker), git status --porcelain empty post-commit 42e60ca pushed to origin/main (verified git log origin/main matches local HEAD).
+  status: completed
 - id: convergence-verify
   title: Verify zero legacy timestamp-keyed md, 18 flat JSON byte-unchanged (13 md = 7 hash-keyed + 6 unique of 11 timestamp-keyed via content dedup), engine writes md only
-  witness: flat lengths 302/253/360 repeat 2-3x, dedup to single md each
-  status: pending
+  witness: 'find .gm/memories -maxdepth 1 -type f: 15 md files all mem-<16hex>-<n>.md pattern (zero legacy timestamp-keyed mem-<ms>-<n>-<n>.json style), plus .flat-export-done marker = 16 total. find .gm/disciplines/default -iname *.json: 18 files, byte count unchanged from pre-conversion baseline (grew from 13-observation to 16 corpus as 3 new memories fired since, flat store stayed exactly 18 -- confirms engine writes md only, never touches flat).'
+  status: completed
