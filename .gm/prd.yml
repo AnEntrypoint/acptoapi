@@ -1288,4 +1288,5 @@
   - acp
   - opt-in
   - correctness
-  status: pending
+  status: completed
+  witness: 'hasProvider() now checks ACPTOAPI_ENABLE_ACP !== ''1'' before returning true for non-ollama ACP daemons. Verified with node -e: unset env var -> 0 ACP daemons in available set; ACPTOAPI_ENABLE_ACP=1 -> 10 ACP daemons included. Pushed commit d49db7c. Also gated server boot-time ensureRunning call (server.js:1559) with same check; pushed commit b57e07f.'
