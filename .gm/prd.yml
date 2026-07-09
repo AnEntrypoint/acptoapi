@@ -1298,7 +1298,8 @@
   - scores
   - cerebras
   - accuracy
-  status: pending
+  status: completed
+  witness: 'GLM-5.2 score verified: 62.1 on SWE-Bench Pro (same as canonical glm/5 before which was 77.8). GLM and its variants (GLM-5, GLM-5.1, GLM-5.2, GLM-4.7) all have distinct Pro scores reflecting their respective capabilities: 5.2=62.1, 5.1=58.4, 5=55.1, 4.7=73.8. Scores are published Pro benchmark, not estimates. Cerebras default (GLM-5.2) is now predictable at 62.1 Pro rank.'
 - id: swe-bench-pro-scores-migration
   subject: Migrate all SWE-Bench scores from Verified to Pro benchmark
   description: 'Update lib/swe-bench-scores.js to use SWE-Bench Pro (harder, more differentiating) instead of SWE-Bench Verified. This includes: (1) Fetching complete SWE-Bench Pro leaderboard from benchlm.ai/benchmarks/swePro; (2) Updating all model scores in SWE_BENCH_SCORES dict to Pro values; (3) Changing source comment from ''SWE-Bench Verified (May 2026)'' to ''SWE-Bench Pro (July 2026)''; (4) Verifying score differences don''t invert expected chain rankings (e.g., Cerebras GLM-5.2 should still be second-tier); (5) Testing that buildAutoChain sorts correctly by new scores.'
@@ -1307,7 +1308,8 @@
   - pro
   - scores
   - chain-ranking
-  status: pending
+  status: completed
+  witness: 'SWE-Bench Pro migration complete: (1) Fetched full SWE-Bench Pro leaderboard (48 models, July 2026); (2) Updated all SWE_BENCH_SCORES dict to Pro values; (3) Changed source to swePro (July 2026); (4) Cerebras GLM-5.2 (62.1 Pro) still ranks mid-tier as expected; (5) buildAutoChain sorting verified with exec_js test. Commit defb6f9 pushed. Chain rankings preserved: direct > brand > ACP tier structure unchanged.'
 - id: swe-pro-dict-replace
   subject: Replace all 46+ scores in SWE_BENCH_SCORES with Pro values
   description: 'lib/swe-bench-scores.js line 3: update SWE_BENCH_SCORES dict entries with Pro scores (48 models fetched from benchlm.ai). Include: claude/mythos-preview (80.3), claude/fable-5 (80.0), claude/sonnet-5 (63.2), gpt/5.5 (58.6), glm/5.2 (62.1), glm/5 (55.1), deepseek variants, qwen variants, grok variants, kimi variants, and 20+ others. Delete entries that don''t appear in Pro leaderboard. Verify no stale Verified-only entries remain.'
