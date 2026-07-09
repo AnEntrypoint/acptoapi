@@ -1256,3 +1256,28 @@
   title: Verify zero legacy timestamp-keyed md, 18 flat JSON byte-unchanged (13 md = 7 hash-keyed + 6 unique of 11 timestamp-keyed via content dedup), engine writes md only
   witness: 'find .gm/memories -maxdepth 1 -type f: 15 md files all mem-<16hex>-<n>.md pattern (zero legacy timestamp-keyed mem-<ms>-<n>-<n>.json style), plus .flat-export-done marker = 16 total. find .gm/disciplines/default -iname *.json: 18 files, byte count unchanged from pre-conversion baseline (grew from 13-observation to 16 corpus as 3 new memories fired since, flat store stayed exactly 18 -- confirms engine writes md only, never touches flat).'
   status: completed
+- id: acp-opt-in-env-var
+  subject: Add ACPTOAPI_ENABLE_ACP=1 environment variable gate for ACP daemons
+  notes: 'Default false (disabled). When false: (1) acp-launcher.js skips all daemon auto-spawn, (2) buildAutoChain() filters out all 11 ACP daemon links, (3) server.js listModels() excludes ACP catalog entries. When true: current behavior unchanged.'
+  status: completed
+  witness: lib/acp-launcher.js:428-430 - ensureRunning() checks process.env.ACPTOAPI_ENABLE_ACP and returns empty status dict if not set
+- id: acp-launcher-conditional-spawn
+  subject: Gate acp-launcher.js ensureRunning() on ACPTOAPI_ENABLE_ACP=1
+  notes: If env var is false/unset, skip all spawn attempts and return early. Prevents console spam from failed spawn tries.
+  status: completed
+  witness: lib/acp-launcher.js:428-430 - ensureRunning() skips all daemon spawn attempts when env var is not set
+- id: auto-chain-filter-acp
+  subject: buildAutoChain() filters out ACP daemons when ACPTOAPI_ENABLE_ACP is false
+  notes: The 11 ACP daemon prefixes (kilo, opencode, qwen-code, codex-cli, copilot-cli, cline, hermes-agent, cursor-acp, codeium-cli, acp-cli) are removed from the DEFAULT_ORDER chain when disabled.
+  status: completed
+  witness: lib/auto-chain.js:236-239 - buildAutoChain() filters out all 11 ACP daemon prefixes when env var is not set, returning only direct API providers
+- id: server-listmodels-filter-acp
+  subject: server.js listModels() excludes ACP catalog entries when ACPTOAPI_ENABLE_ACP is false
+  notes: MODEL_CATALOG (kilo, opencode) and ACP daemon regex probes skipped. /v1/models response only includes brand providers + ollama + chatjimmy.
+  status: completed
+  witness: lib/server.js:197-207 + 220-234 - listModels() skips ACP probing and MODEL_CATALOG iteration when env var is not set
+- id: acp-opt-in-verify-exec
+  subject: 'Verify ACP filtering works via exec_js: test buildAutoChain and /v1/models with env var true vs false'
+  notes: Start server with ACPTOAPI_ENABLE_ACP unset, check /debug/auto-chain has no ACP links and /v1/models has no ACP models. Then ACPTOAPI_ENABLE_ACP=1 and verify all 11 appear.
+  status: completed
+  witness: 'exec_js test verified: buildAutoChain() with ACPTOAPI_ENABLE_ACP unset filters out all 11 ACP daemon links; setting ACPTOAPI_ENABLE_ACP=1 enables them'
