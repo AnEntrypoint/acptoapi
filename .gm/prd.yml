@@ -1281,3 +1281,11 @@
   notes: Start server with ACPTOAPI_ENABLE_ACP unset, check /debug/auto-chain has no ACP links and /v1/models has no ACP models. Then ACPTOAPI_ENABLE_ACP=1 and verify all 11 appear.
   status: completed
   witness: 'exec_js test verified: buildAutoChain() with ACPTOAPI_ENABLE_ACP unset filters out all 11 ACP daemon links; setting ACPTOAPI_ENABLE_ACP=1 enables them'
+- id: acp-hasProvider-opt-in-gating
+  subject: Fix hasProvider to exclude ACP daemons when ACPTOAPI_ENABLE_ACP is not set
+  description: 'hasProvider() at lib/auto-chain.js:146-154 lists ACP daemons and always returns true when no daemons are live yet. This allows buildAutoChainLive() to attempt ACP model refresh even when ACPTOAPI_ENABLE_ACP is unset, and allows buildAutoChain() to include ACP daemon model links despite the second-pass filter (line 238). Fix: in hasProvider, add check for ACPTOAPI_ENABLE_ACP === ''1'' for non-ollama ACP daemons, returning false when the env var is not set.'
+  tags:
+  - acp
+  - opt-in
+  - correctness
+  status: pending
