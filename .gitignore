@@ -65,6 +65,8 @@ rs-learn.db
 .gm/witness/
 .gm/long-gap-retry-state
 .gm/exec-spool/.gm-plugkit-stale.json
+.gm/disciplines/codeinsight-vec/
+.gm/.gm-continue-count
 .plugkit-browser-profile/
 .plugkit-browser-profile-*/
 .claude/worktrees/

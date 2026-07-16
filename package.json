@@ -21,7 +21,8 @@
     "./lib/sampler": "./lib/sampler.js",
     "./lib/queues": "./lib/queues.js",
     "./lib/matrix": "./lib/matrix.js",
-    "./lib/chain": "./lib/chain.js"
+    "./lib/chain": "./lib/chain.js",
+    "./lib/extra-providers": "./lib/extra-providers.js"
   },
   "keywords": [
     "anthropic",
