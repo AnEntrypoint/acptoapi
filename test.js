@@ -149,12 +149,19 @@ test('getAvailableModels: direct providers sort before ACP daemons', () => {
 
 // ---- swe-bench-scores: no fabricated ACP wrapper entries ----
 test('swe-bench-scores: ACP prefix entries removed from dict', () => {
-    const { SWE_BENCH_SCORES, getModelScore } = freshRequire('./lib/swe-bench-scores');
-    assert(!SWE_BENCH_SCORES['cline/claude-opus-4-1'], 'cline entry should not be in dict');
-    assert(!SWE_BENCH_SCORES['copilot-cli/gpt-4o'], 'copilot-cli entry should not be in dict');
-    // But getModelScore should still resolve ACP prefixed ids via underlying model lookup
-    const score = getModelScore('cline/claude-opus-4-1');
-    assert(score > 0, `getModelScore('cline/claude-opus-4-1') should resolve to underlying score, got ${score}`);
+    const { SWE_BENCH_SCORES, getModelScore, loadCache } = freshRequire('./lib/swe-bench-scores');
+    assert(!SWE_BENCH_SCORES, 'the static SWE_BENCH_SCORES table was removed in favor of the live-fetched cache');
+    // getModelScore should resolve ACP prefixed ids via underlying model lookup.
+    // Pick a real slug from whatever the live cache currently has rather than
+    // hardcoding one -- the upstream leaderboard's model roster changes over
+    // time (this test previously hardcoded 'cline/claude-opus-4-1', which
+    // stopped existing on the real leaderboard and made the test flake on
+    // real leaderboard churn, not a real regression).
+    const cache = loadCache();
+    const realSlug = cache && cache.scores && Object.keys(cache.scores)[0];
+    if (!realSlug) { console.log('[SKIP] swe-bench-scores: no live cache populated yet, skipping resolve check'); return; }
+    const score = getModelScore(`cline/${realSlug}`);
+    assert(score > 0, `getModelScore('cline/${realSlug}') should resolve to underlying score, got ${score}`);
 });
 
 // ---- sdk.js: google prefix routes to gemini ----
