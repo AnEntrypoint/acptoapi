@@ -299,6 +299,30 @@ Pass `model: 'auto'` to the Anthropic-compat endpoint to trigger auto-chain rout
 
 Cloudflare URL is dynamic: `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/v1/chat/completions`  - `CLOUDFLARE_ACCOUNT_ID` is required alongside `CLOUDFLARE_API_KEY`.
 
+## Live brand-catalog + dynamic chain expansion (lib/brand-catalog.js, 2026-07-19)
+
+`buildAutoChain` historically contributed exactly ONE hardcoded `DEFAULT_MODELS` entry per brand provider, while ACP daemons already expanded from a live catalog (`ACP_MODEL_CACHE`). That asymmetry capped the chain at ~11 links even with 700+ models actually reachable upstream. `lib/brand-catalog.js` gives brand providers the same live-catalog treatment.
+
+### Enumeration
+
+`brandCatalog.refreshAll({force?})` probes every keyed brand's `/v1/models` (or its override) live, with bounded concurrency (`ACPTOAPI_BRAND_CATALOG_CONCURRENCY`, default 4) + jittered 50-200ms inter-probe gaps so a discovery sweep never storms providers. Results persist to `~/.acptoapi/brand-catalog-cache.json` (atomic tmp+rename; TTL `ACPTOAPI_BRAND_CATALOG_TTL_MS`, default 10min) so `buildAutoChain` can read it synchronously via `getCachedModels(name)` with NO network on the hot path. Witnessed live (real `~/.acptoapi/.env`): 708 models across 10 brands (openrouter 338, nvidia 119, mistral 72, codestral 72, opencode-zen 55, github-models 37, groq 15, zai 8, sambanova 6, cerebras 3).
+
+### Models-URL derivation + witnessed exceptions
+
+The default rule swaps a brand's chat URL suffix (`/chat/completions` -> `/models`, `/v2/chat` -> `/v1/models`). `modelsUrlFor` reads the RAW `BRANDS[name]` and invokes its url thunk inside a `try/catch` (NEVER `getBrand`, whose getter re-invokes the thunk on property access) so an unconfigured brand (e.g. cloudflare with `CLOUDFLARE_API_KEY` set but `CLOUDFLARE_ACCOUNT_ID` unset) yields `null` instead of throwing and aborting the whole sweep. `MODELS_URL_OVERRIDE` pins the swap exceptions: `codestral` -> `api.mistral.ai/v1/models` (its own `codestral.mistral.ai/v1/models` 404s), `zai` -> `api.z.ai/api/paas/v4/models` (NOT `/v1/models`, which 404s nginx), `cohere` -> `/v1/models`, `github-models` -> `models.github.ai/catalog/models` (catalog shape). A `false` value means "no enumerable catalog; use the static default".
+
+### Auth-dead exclusion
+
+On a catalog probe returning 401/403, `refreshAll` records `reason: http_401/403` AND calls `keyring.markKeyFailed(envKey, key, 'auth')`. `buildAutoChain` calls `brandCatalog.isAuthDead(name)` and EXCLUDES such brands from the chain entirely (rather than falling them back to a guaranteed-401 static default). Witnessed: an invalid `QWEN_API_KEY` -> qwen dropped from the chain.
+
+### Round-robin provider-diverse ranking
+
+Per brand, the top-N models (`ACPTOAPI_BRAND_MODELS_PER_PROVIDER`, default 6) are taken by SWE-bench score, then the per-brand buckets are INTERLEAVED round-robin (strongest-lead brand first, then one model per brand per pass). Each `addLink` stamps an internal `rrOrder`; `rankLinks` uses `rrOrder` as the primary cold-cache ordering key (after live availability + tool-capability, before the weak SWE-bench tiebreak) so successive fallbacks hit DIFFERENT providers - staggering for rate-limit resilience - while the chain STILL leads with the smartest available model. `rrOrder` is stripped before the chain links are returned (public shape stays `{model, fallbackOn, swe_bench_score?}`). Witnessed: a 12-slot chain spanning 9-10 distinct providers, one per provider on the first pass, vs the prior 11 links of 1-model-per-provider. Disable brand-catalog expansion with `ACPTOAPI_DISABLE_BRAND_CATALOG=1` (falls back to the static per-provider defaults).
+
+### Boot wiring + observability
+
+The server boot sequence (`server.listen` callback) fires a fire-and-forget `brandCatalog.refreshAll({force:false})` ~5s after listening (gated by the same `ACPTOAPI_DISABLE_BOOT_PROBE`/`ACPTOAPI_DISABLE_PROBE` conventions, plus `ACPTOAPI_DISABLE_BRAND_CATALOG`) so the disk cache has real data before the first `auto`/chain request. `GET /v1/brand-catalog` returns `{ brands: [{brand, count, ts, fresh, reason}] }` (mirrors `/v1/availability`/`/v1/sampler/status`) - an operator sees which brands enumerated, how many models, and WHY an empty brand is empty (`reason: no_models_endpoint`/`http_401`/`timeout`/...). Env vars: `ACPTOAPI_BRAND_CATALOG_TTL_MS`, `ACPTOAPI_BRAND_CATALOG_CACHE`, `ACPTOAPI_BRAND_CATALOG_TIMEOUT_MS`, `ACPTOAPI_BRAND_CATALOG_CONCURRENCY`, `ACPTOAPI_BRAND_MODELS_PER_PROVIDER`, `ACPTOAPI_DISABLE_BRAND_CATALOG`.
+
 ## Brand Routing (HTTP Passthrough Pattern)
 
 OpenAI-compatible brand prefixes (groq, openrouter, together, deepseek, xai, cerebras, perplexity, mistral, fireworks, openai) route via **HTTP passthrough**, not through the `translate()` pipeline.

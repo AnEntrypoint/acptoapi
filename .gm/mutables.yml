@@ -69,10 +69,12 @@
 - id: mut-cerebras-glm52-exists
   subject: Cerebras GLM-5.2 exists on this account
   task: Does the model 'zai-org/glm-5.2' actually exist on the configured Cerebras account? Commit 3dc8724 claimed it does not. Resolved by prd-verify-cerebras-glm52-live.
-  status: unknown
+  status: witnessed
   witness: lib/auto-chain.js:54; server.js:312 BRAND_CATALOG cerebras includes zai-org/glm-5.2
+  witness_evidence: 'Live GET https://api.cerebras.ai/v1/models with CEREBRAS_API_KEY from ~/.acptoapi/.env -> 200, exactly 3 ids: [zai-glm-4.7, gpt-oss-120b, gemma-4-31b]. zai-org/glm-5.2 is ABSENT. exec_js-3.json stdout CEREBRAS IDS.'
 - id: mut-zen-hy3free-exists
   subject: opencode-zen/hy3-free exists on zen account
   task: Does the model 'hy3-free' actually exist on the opencode-zen API (api.opencode.ai) with the configured OPENCODE_ZEN_API_KEY? Resolved by prd-verify-zen-hy3free-live.
-  status: unknown
+  status: witnessed
   witness: lib/openai-brands.js:24 opencode-zen url+envKey; user confirmed second option = opencode-zen/hy3-free
+  witness_evidence: Live GET https://api.opencode.ai/v1/models with OPENCODE_ZEN_API_KEY -> HTTP 200 body "Not Found"; no model list served, so hy3-free is not enumerable/verifiable on this endpoint. exec_js-3.json stdout ZEN IDS.

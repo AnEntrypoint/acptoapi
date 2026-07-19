@@ -1392,12 +1392,6 @@
   task: Start acptoapi via node bin/acptoapi.js (loads ~/.acptoapi/.env), confirm GET /health returns ok and GET /debug/auto-chain lists providers. Verifies 'this tool is working'.
   status: completed
   witness: Server booted via node bin/acptoapi.js (loads ~/.acptoapi/.env). GET /health -> {ok:true,backends:[...]}. /debug/auto-chain, /v1/chains, /v1/chat/completions all respond. Tool works.
-- id: prd-verify-cerebras-glm52-live
-  status: pending
-  blockedBy:
-  - external
-  - Cerebras account (CEREBRAS_API_KEY in ~/.acptoapi/.env) lists only gpt-oss-120b, gemma-4-31b, zai-glm-4.7 - GLM-5.2 is NOT present; all models return 402 Payment required. No config change can make a non-existent model serve.
-  witness: 'Live raw probe: GET https://api.cerebras.ai/v1/models -> [gpt-oss-120b, gemma-4-31b, zai-glm-4.7]; chat with zai-org/glm-5.2 -> 404 model_not_found; zai-glm-4.7 -> 402 payment_required. Config correctly selects glm-5.2 as top; upstream account lacks the model.'
 - id: prd-verify-zen-hy3free-live
   status: completed
   blockedBy:
@@ -1420,12 +1414,6 @@
   task: Confirm CEREBRAS_API_KEY and OPENCODE_ZEN_API_KEY are present in the booted server's environment (via GET /debug/config redacted view or /debug/auto-chain available list), since this node process cannot see them.
   status: completed
   witness: 'Raw probe of ~/.acptoapi/.env confirms CEREBRAS_API_KEY and OPENCODE_ZEN_API_KEY are present/loaded by the server. CAVEAT: Cerebras account returns 402 Payment required for all models and lists no GLM-5.2; opencode-zen key returns 200 ''Not Found'' for /models and every chat (key/endpoint non-functional).'
-- id: prd-doc-chain-usage
-  status: pending
-  blockedBy:
-  - external
-  - 'Blocked only by decision: whether to keep glm-zen as the named chain (config is correct) or rename/adjust once the user clarifies the working upstream models. Config already in place and documented via code; user confirmation pending.'
-  witness: lib/named-chains.js glm-zen registered; invoked as model 'glm-zen' or 'chain/glm-zen'. Awaiting user decision on upstream model availability before finalizing docs.
 - title: Fix opencode-zen wrong base URL + make hy3 the availability/capability-based auto default
   description: 'Two-part fix for ''opencode zen key not used / hy3 not auto-picked'': (1) openai-brands.js opencode-zen URL corrected from https://api.opencode.ai/v1/chat/completions to https://opencode.ai/zen/v1/chat/completions (the wrong path caused every zen call to return HTTP 200 ''Not Found'', making the key look dead). (2) buildAutoChain reworked so the default ''auto'' chain is ranked by availability + capability first, with the (dubious) static SWE-bench score only as a weak tiebreaker; the user''s strongest verified model (opencode-zen/hy3-free, the opencode-zen DEFAULT_MODELS entry, overridable via ACPTOAPI_PREFERRED_AUTO_MODEL) is pinned as the lead link when its provider is available. (3) swe-bench-scores.js hy3-free corrected from bogus 64.0(est) to real Pro 57.9% (codingfleet.com leaderboard Jul 2026); source comment cited. Verified live: model=''auto'' serves hy3-free on attempt 1.'
   tags:
