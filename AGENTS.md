@@ -323,6 +323,29 @@ Per brand, the top-N models (`ACPTOAPI_BRAND_MODELS_PER_PROVIDER`, default 6) ar
 
 The server boot sequence (`server.listen` callback) fires a fire-and-forget `brandCatalog.refreshAll({force:false})` ~5s after listening (gated by the same `ACPTOAPI_DISABLE_BOOT_PROBE`/`ACPTOAPI_DISABLE_PROBE` conventions, plus `ACPTOAPI_DISABLE_BRAND_CATALOG`) so the disk cache has real data before the first `auto`/chain request. `GET /v1/brand-catalog` returns `{ brands: [{brand, count, ts, fresh, reason}] }` (mirrors `/v1/availability`/`/v1/sampler/status`) - an operator sees which brands enumerated, how many models, and WHY an empty brand is empty (`reason: no_models_endpoint`/`http_401`/`timeout`/...). Env vars: `ACPTOAPI_BRAND_CATALOG_TTL_MS`, `ACPTOAPI_BRAND_CATALOG_CACHE`, `ACPTOAPI_BRAND_CATALOG_TIMEOUT_MS`, `ACPTOAPI_BRAND_CATALOG_CONCURRENCY`, `ACPTOAPI_BRAND_MODELS_PER_PROVIDER`, `ACPTOAPI_DISABLE_BRAND_CATALOG`.
 
+## Preemptive readiness prober (lib/readiness.js, 2026-07-19)
+
+The chain-fallback machinery is REACTIVE: on a real request, `buildAutoChain`'s lead link is a best-guess (SWE-bench score + whatever `lib/availability.js` signal exists), so if that lead is actually down/rate-limited the request pays the full fallback walk (witnessed: `/v1/messages` walking glm-5 -> 404, gpt-oss-20b -> empty, gemma-4-31b -> payment_required, DeepSeek-V3.1 -> ok, ~5.8s). `lib/readiness.js` makes selection PREEMPTIVE: it periodically sends a real, minimal (1-token) request to the top-K candidates of the current auto-chain, records outcome + latency into `availability.recordSuccess/recordFailure`, so by the time a user request arrives the chain already LEADS with a recently-verified live model and per-request fallback time approaches zero. Witnessed: readiness success x3 on `cerebras/gemma-4-31b` promotes it position 4 -> 0 (chain lead); failure x2 on `nvidia/minimaxai/minimax-m3` (score -4.0) demotes it out of the entire 12-link chain.
+
+### Distinct from sampler and boot-probe
+
+- `lib/sampler.js` is a per-provider-PREFIX circuit breaker; its brand probes are hollow (`buildModelProbes` in server.js resolves brand probes to `Promise.resolve()` env-key checks), so it never learns whether a specific model responds.
+- the boot-probe (server.js) is a one-shot `getAvailableModelsLive` pass.
+- readiness is a CONTINUOUS, per-MODEL, real-request signal feeding the same `availability` score the chain already ranks on (`buildAutoChain` -> `rankLinks` -> `availability.score`).
+
+### Budget discipline ("without wasting limits")
+
+- Only the top-K chain leads are probed (`deriveCandidates(topK, maxPerProvider)`), re-derived from `buildAutoChain('auto')` each cycle so promotions/demotions are tracked (smart-mapped, not all 700 models).
+- `isFresh(model)` skips a candidate whose LAST readiness probe OR whose `availability` last real-traffic success/failure landed within `freshMs` -- real user traffic already records per-link success/failure in `runChat`/`runStream`, so live traffic IS a readiness signal the prober defers to, never spending a probe to re-confirm what traffic just proved (witnessed: 2nd immediate pass fresh-skips 4/5).
+- A provider already in `sampler` backoff is skipped (don't probe a known-down provider).
+- Per-provider max probes per cycle (`maxPerProvider`), jittered inter-probe spacing (`deterministicJitter`, no `Math.random`), and a `Promise.race` timeout (NOT a `signal` field on `sdk.chat` opts -- that leaks into the provider body and most brands 400 with "property 'signal' is unsupported").
+
+### Boot + observability
+
+`server.listen` starts `readiness.start()` (idempotent single interval, unref'd) plus one warm-up `runOnce()` ~8s after boot (after the brand-catalog refresh populates candidates), gated by `ACPTOAPI_DISABLE_BOOT_PROBE`/`ACPTOAPI_DISABLE_PROBE`/`ACPTOAPI_DISABLE_READINESS`. `GET /v1/readiness` returns `{ candidates: [{model, lastProbeTs, ok, latencyMs, rank, fresh, nextProbeInMs}] }`. Env: `ACPTOAPI_READINESS_INTERVAL_MS` (default 120000), `ACPTOAPI_READINESS_FRESH_MS` (90000), `ACPTOAPI_READINESS_TOPK` (5), `ACPTOAPI_READINESS_MAX_PER_PROVIDER` (2), `ACPTOAPI_READINESS_PROBE_TIMEOUT_MS` (8000), `ACPTOAPI_READINESS_SPACING_MS` (200), `ACPTOAPI_DISABLE_READINESS=1` (opt out; default on).
+
+Note: `GET /v1/runs` now records the `/v1/chat/completions` path too (handleChat calls `recordRunDirect` with the real `__chainAttempted` links); previously only `handleAnthropicMessages` recorded, so chat-completions runs showed `attempted: null`.
+
 ## Brand Routing (HTTP Passthrough Pattern)
 
 OpenAI-compatible brand prefixes (groq, openrouter, together, deepseek, xai, cerebras, perplexity, mistral, fireworks, openai) route via **HTTP passthrough**, not through the `translate()` pipeline.
