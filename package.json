@@ -22,7 +22,8 @@
     "./lib/queues": "./lib/queues.js",
     "./lib/matrix": "./lib/matrix.js",
     "./lib/chain": "./lib/chain.js",
-    "./lib/extra-providers": "./lib/extra-providers.js"
+    "./lib/extra-providers": "./lib/extra-providers.js",
+    "./lib/readiness": "./lib/readiness.js"
   },
   "keywords": [
     "anthropic",

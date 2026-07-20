@@ -106,7 +106,7 @@ const { Anthropic } = require('./lib/sdk/anthropic');
 const { OpenAI } = require('./lib/sdk/openai');
 const { createAnthropicServer } = require('./lib/server/anthropic');
 const { createOpenAIServer } = require('./lib/server/openai');
-const { resolveModel, chat, chain, fallback, chatChain, streamChain, listNamedChains, getRunHistory, listAllModelsAndQueues, parseCommaList, splitPrefix } = require('./lib/sdk');
+const { resolveModel, chat: _chat, chain, fallback, chatChain: _chatChain, streamChain, listNamedChains, getRunHistory, listAllModelsAndQueues, parseCommaList, splitPrefix } = require('./lib/sdk');
 const { resolveQueue, listAllQueues } = require('./lib/queues');
 const { loadMatrix, matrixScore, clearMatrixCache } = require('./lib/matrix');
 const sdkStream = require('./lib/sdk').stream;
@@ -116,8 +116,34 @@ const { createCircuitBreaker } = require('./lib/circuit-breaker');
 const sampler = require('./lib/sampler');
 const { PROVIDER_KEYS, PROVIDER_DEFAULTS } = require('./lib/provider-maps');
 const modelProber = require('./lib/model-prober');
+const readiness = require('./lib/readiness');
 
-module.exports = { streamGemini, createFullStream, generateGemini, streamRouter, generateRouter, createRouter, convertMessages, convertTools, cleanSchema, GeminiError, BridgeError, AuthError, RateLimitError, TimeoutError, ContextWindowError, ContentPolicyError, ProviderError, classifyError, redactKeys, streamACP, generateACP, translate, translateSync, buffer, stream, getFormat, FORMATS, getProvider, PROVIDERS, createStreamActor, Anthropic, OpenAI, createAnthropicServer, createOpenAIServer, resolveModel, chat, chain, fallback, chatChain, streamChain, listNamedChains, getRunHistory, sdkStream, buildAutoChain, DEFAULT_ORDER, DEFAULT_MODELS, hasProvider, getOrder, createCircuitBreaker, createSampler: sampler.createSampler, isAvailable: sampler.isAvailable, markFailed: sampler.markFailed, markOk: sampler.markOk, resetAvailability: sampler.resetAvailability, getStatus: sampler.getStatus, peekStatus: sampler.peekStatus, probe: sampler.probe, startSampler: sampler.startSampler, stopSampler: sampler.stopSampler, PROVIDER_KEYS, PROVIDER_DEFAULTS, probeModels: modelProber.probeModels, getCachedModels: modelProber.getCachedModels, createModelProber: modelProber.createModelProber, listAllModelsAndQueues, parseCommaList, splitPrefix, resolveQueue, listAllQueues, loadMatrix, matrixScore, clearMatrixCache, getModelScore, sortByBenchmark, runClaude };
+// Auto-start the preemptive readiness prober (lib/readiness.js) on first real
+// chat/chatChain call, for EVERY consumer of this library -- not just
+// lib/server.js's standalone HTTP server, which was the only caller of
+// readiness.start() before this. A caller that uses acptoapi in-process (no
+// server.js involved at all -- e.g. freddie's acptoapi-bridge.js, which is
+// how casey actually consumes this package) previously got the fully REACTIVE
+// chain-fallback behavior only: no request ever led with a recently-verified
+// live model, so a real user turn always paid for discovering a rate-limited/
+// overloaded provider itself before falling through. Lazy (not boot-time) so
+// a script that only imports the library for something else (a one-shot CLI
+// call, a test) never pays the prober's background cost; the first REAL chat
+// call is "acptoapi is actually being used to serve chat," the correct signal
+// to start keeping the chain warm. Idempotent (readiness.start() no-ops if
+// already running) and opt-out via ACPTOAPI_READINESS_DISABLE=1, matching the
+// rest of this project's default-on/env-opt-out convention.
+let _readinessStarted = false;
+function _ensureReadinessStarted() {
+  if (_readinessStarted) return;
+  _readinessStarted = true;
+  if (process.env.ACPTOAPI_READINESS_DISABLE === '1') return;
+  try { readiness.start() } catch { /* never let the prober block a real chat call */ }
+}
+function chat(opts) { _ensureReadinessStarted(); return _chat(opts); }
+function chatChain(models, opts) { _ensureReadinessStarted(); return _chatChain(models, opts); }
+
+module.exports = { streamGemini, createFullStream, generateGemini, streamRouter, generateRouter, createRouter, convertMessages, convertTools, cleanSchema, GeminiError, BridgeError, AuthError, RateLimitError, TimeoutError, ContextWindowError, ContentPolicyError, ProviderError, classifyError, redactKeys, streamACP, generateACP, translate, translateSync, buffer, stream, getFormat, FORMATS, getProvider, PROVIDERS, createStreamActor, Anthropic, OpenAI, createAnthropicServer, createOpenAIServer, resolveModel, chat, chain, fallback, chatChain, streamChain, listNamedChains, getRunHistory, sdkStream, buildAutoChain, DEFAULT_ORDER, DEFAULT_MODELS, hasProvider, getOrder, createCircuitBreaker, createSampler: sampler.createSampler, isAvailable: sampler.isAvailable, markFailed: sampler.markFailed, markOk: sampler.markOk, resetAvailability: sampler.resetAvailability, getStatus: sampler.getStatus, peekStatus: sampler.peekStatus, probe: sampler.probe, startSampler: sampler.startSampler, stopSampler: sampler.stopSampler, PROVIDER_KEYS, PROVIDER_DEFAULTS, probeModels: modelProber.probeModels, getCachedModels: modelProber.getCachedModels, createModelProber: modelProber.createModelProber, listAllModelsAndQueues, parseCommaList, splitPrefix, resolveQueue, listAllQueues, loadMatrix, matrixScore, clearMatrixCache, getModelScore, sortByBenchmark, runClaude, startReadiness: readiness.start, stopReadiness: readiness.stop, peekReadiness: readiness.peek, runReadinessOnce: readiness.runOnce };
 
 async function runClaude(opts = {}) {
   const { spawn } = require('child_process');
