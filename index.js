@@ -140,10 +140,29 @@ function _ensureReadinessStarted() {
   if (process.env.ACPTOAPI_READINESS_DISABLE === '1') return;
   try { readiness.start() } catch { /* never let the prober block a real chat call */ }
 }
-function chat(opts) { _ensureReadinessStarted(); return _chat(opts); }
-function chatChain(models, opts) { _ensureReadinessStarted(); return _chatChain(models, opts); }
+// registerCandidates the CALLER's own explicit chain so the readiness prober
+// keeps THOSE specific models warm, not just the generic auto-chain -- see
+// lib/readiness.js's registerCandidates doc for why this matters: without
+// it, a caller's own configured provider (e.g. casey's CASEY_LLM_MODEL) that
+// falls into a long sampler backoff after a burst of real failures has no
+// path back to "known healthy" except another real chat call, which
+// pre-emptive skip prevents from happening -- it can sit artificially
+// blacklisted for up to 8 minutes after actually recovering. A plain model
+// string with no comma is a SINGLE link, still worth registering (a caller
+// with one fixed model benefits from the same warm-keeping).
+function _registerChainModels(modelsOrChain) {
+  try {
+    if (Array.isArray(modelsOrChain)) {
+      readiness.registerCandidates(modelsOrChain.map(m => typeof m === 'string' ? m : (m && m.model)).filter(Boolean));
+    } else if (typeof modelsOrChain === 'string') {
+      readiness.registerCandidates(modelsOrChain.includes(',') ? modelsOrChain.split(',').map(s => s.trim()).filter(Boolean) : [modelsOrChain]);
+    }
+  } catch { /* never let candidate registration block a real chat call */ }
+}
+function chat(opts) { _ensureReadinessStarted(); if (opts && opts.model) _registerChainModels(opts.model); return _chat(opts); }
+function chatChain(models, opts) { _ensureReadinessStarted(); _registerChainModels(models); return _chatChain(models, opts); }
 
-module.exports = { streamGemini, createFullStream, generateGemini, streamRouter, generateRouter, createRouter, convertMessages, convertTools, cleanSchema, GeminiError, BridgeError, AuthError, RateLimitError, TimeoutError, ContextWindowError, ContentPolicyError, ProviderError, classifyError, redactKeys, streamACP, generateACP, translate, translateSync, buffer, stream, getFormat, FORMATS, getProvider, PROVIDERS, createStreamActor, Anthropic, OpenAI, createAnthropicServer, createOpenAIServer, resolveModel, chat, chain, fallback, chatChain, streamChain, listNamedChains, getRunHistory, sdkStream, buildAutoChain, DEFAULT_ORDER, DEFAULT_MODELS, hasProvider, getOrder, createCircuitBreaker, createSampler: sampler.createSampler, isAvailable: sampler.isAvailable, markFailed: sampler.markFailed, markOk: sampler.markOk, resetAvailability: sampler.resetAvailability, getStatus: sampler.getStatus, peekStatus: sampler.peekStatus, probe: sampler.probe, startSampler: sampler.startSampler, stopSampler: sampler.stopSampler, PROVIDER_KEYS, PROVIDER_DEFAULTS, probeModels: modelProber.probeModels, getCachedModels: modelProber.getCachedModels, createModelProber: modelProber.createModelProber, listAllModelsAndQueues, parseCommaList, splitPrefix, resolveQueue, listAllQueues, loadMatrix, matrixScore, clearMatrixCache, getModelScore, sortByBenchmark, runClaude, startReadiness: readiness.start, stopReadiness: readiness.stop, peekReadiness: readiness.peek, runReadinessOnce: readiness.runOnce };
+module.exports = { streamGemini, createFullStream, generateGemini, streamRouter, generateRouter, createRouter, convertMessages, convertTools, cleanSchema, GeminiError, BridgeError, AuthError, RateLimitError, TimeoutError, ContextWindowError, ContentPolicyError, ProviderError, classifyError, redactKeys, streamACP, generateACP, translate, translateSync, buffer, stream, getFormat, FORMATS, getProvider, PROVIDERS, createStreamActor, Anthropic, OpenAI, createAnthropicServer, createOpenAIServer, resolveModel, chat, chain, fallback, chatChain, streamChain, listNamedChains, getRunHistory, sdkStream, buildAutoChain, DEFAULT_ORDER, DEFAULT_MODELS, hasProvider, getOrder, createCircuitBreaker, createSampler: sampler.createSampler, isAvailable: sampler.isAvailable, markFailed: sampler.markFailed, markOk: sampler.markOk, resetAvailability: sampler.resetAvailability, getStatus: sampler.getStatus, peekStatus: sampler.peekStatus, probe: sampler.probe, startSampler: sampler.startSampler, stopSampler: sampler.stopSampler, PROVIDER_KEYS, PROVIDER_DEFAULTS, probeModels: modelProber.probeModels, getCachedModels: modelProber.getCachedModels, createModelProber: modelProber.createModelProber, listAllModelsAndQueues, parseCommaList, splitPrefix, resolveQueue, listAllQueues, loadMatrix, matrixScore, clearMatrixCache, getModelScore, sortByBenchmark, runClaude, startReadiness: readiness.start, stopReadiness: readiness.stop, peekReadiness: readiness.peek, runReadinessOnce: readiness.runOnce, registerReadinessCandidates: readiness.registerCandidates };
 
 async function runClaude(opts = {}) {
   const { spawn } = require('child_process');
