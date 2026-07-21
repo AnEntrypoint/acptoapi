@@ -141,6 +141,32 @@ function _ensureReadinessStarted() {
   if (process.env.ACPTOAPI_READINESS_DISABLE === '1') return;
   try { readiness.start() } catch { /* never let the prober block a real chat call */ }
 }
+// SAME CLASS OF GAP as readiness above, found live: lib/extra-providers.js's
+// getChainLinks() (what buildAutoChain actually reads for a caller's
+// ~/.acptoapi/extra-providers.txt entries) is cache-only/synchronous by
+// design -- it can only surface a provider that was ALREADY live-probed by
+// SOME process and cached to disk. The actual live probe
+// (loadAndRegisterAsync) was, before this fix, called ONLY from
+// lib/server.js's standalone HTTP server boot path -- an in-process
+// consumer (casey via freddie's acptoapi-bridge.js, exactly like the
+// readiness gap above) never triggered it at all. Live-witnessed: a real,
+// currently-configured, working extra-provider entry in
+// ~/.acptoapi/extra-providers.txt had ZERO cache entry (the cache held only
+// stale entries from previously-replaced provider URLs) and was completely
+// absent from every chain build all session, even though the endpoint
+// itself was reachable and had already recorded real successes elsewhere.
+// Same fix shape: lazy first-real-call trigger, fire-and-forget (never
+// blocks or throws into the calling chat/chatChain), idempotent.
+let _extraProvidersStarted = false;
+function _ensureExtraProvidersStarted() {
+  if (_extraProvidersStarted) return;
+  _extraProvidersStarted = true;
+  if (process.env.ACPTOAPI_EXTRA_PROVIDERS_DISABLE === '1') return;
+  try {
+    const extraProviders = require('./lib/extra-providers');
+    extraProviders.loadAndRegisterAsync().catch(() => {});
+  } catch { /* never let extra-provider registration block a real chat call */ }
+}
 // registerCandidates the CALLER's own explicit chain so the readiness prober
 // keeps THOSE specific models warm, not just the generic auto-chain -- see
 // lib/readiness.js's registerCandidates doc for why this matters: without
@@ -160,8 +186,8 @@ function _registerChainModels(modelsOrChain) {
     }
   } catch { /* never let candidate registration block a real chat call */ }
 }
-function chat(opts) { _ensureReadinessStarted(); if (opts && opts.model) _registerChainModels(opts.model); return _chat(opts); }
-function chatChain(models, opts) { _ensureReadinessStarted(); _registerChainModels(models); return _chatChain(models, opts); }
+function chat(opts) { _ensureReadinessStarted(); _ensureExtraProvidersStarted(); if (opts && opts.model) _registerChainModels(opts.model); return _chat(opts); }
+function chatChain(models, opts) { _ensureReadinessStarted(); _ensureExtraProvidersStarted(); _registerChainModels(models); return _chatChain(models, opts); }
 
 module.exports = { streamGemini, createFullStream, generateGemini, streamRouter, generateRouter, createRouter, convertMessages, convertTools, cleanSchema, GeminiError, BridgeError, AuthError, RateLimitError, TimeoutError, ContextWindowError, ContentPolicyError, ProviderError, classifyError, redactKeys, streamACP, generateACP, translate, translateSync, buffer, stream, getFormat, FORMATS, getProvider, PROVIDERS, createStreamActor, Anthropic, OpenAI, createAnthropicServer, createOpenAIServer, resolveModel, chat, chain, fallback, chatChain, streamChain, listNamedChains, getRunHistory, sdkStream, buildAutoChain, DEFAULT_ORDER, DEFAULT_MODELS, hasProvider, getOrder, createCircuitBreaker, createSampler: sampler.createSampler, isAvailable: sampler.isAvailable, markFailed: sampler.markFailed, markOk: sampler.markOk, resetAvailability: sampler.resetAvailability, getStatus: sampler.getStatus, peekStatus: sampler.peekStatus, probe: sampler.probe, startSampler: sampler.startSampler, stopSampler: sampler.stopSampler, PROVIDER_KEYS, PROVIDER_DEFAULTS, probeModels: modelProber.probeModels, getCachedModels: modelProber.getCachedModels, createModelProber: modelProber.createModelProber, listAllModelsAndQueues, parseCommaList, splitPrefix, resolveQueue, listAllQueues, loadMatrix, matrixScore, clearMatrixCache, getModelScore, sortByBenchmark, runClaude, startReadiness: readiness.start, stopReadiness: readiness.stop, peekReadiness: readiness.peek, runReadinessOnce: readiness.runOnce, registerReadinessCandidates: readiness.registerCandidates, recordModelSuccess: availability.recordSuccess, recordModelFailure: availability.recordFailure, peekModelAvailability: availability.peek };
 
