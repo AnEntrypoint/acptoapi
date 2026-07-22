@@ -182,6 +182,13 @@ function _ensureReadinessStarted() {
 // itself was reachable and had already recorded real successes elsewhere.
 // Same fix shape: lazy first-real-call trigger, fire-and-forget (never
 // blocks or throws into the calling chat/chatChain), idempotent.
+// PERIODIC, not one-shot: extra-providers.js's own start() (mirroring
+// readiness.js's pattern) fires an immediate probe then re-probes on an
+// interval, so a single transient failure (a tight 8s PROBE_TIMEOUT racing
+// boot-time contention from every OTHER concurrent probe) self-heals on the
+// next tick instead of permanently excluding a genuinely working provider
+// for the rest of the process's life -- see extra-providers.js start()'s own
+// comment for the live-witnessed bug this replaced (a one-shot latch here).
 let _extraProvidersStarted = false;
 function _ensureExtraProvidersStarted() {
   if (_extraProvidersStarted) return;
@@ -189,7 +196,7 @@ function _ensureExtraProvidersStarted() {
   if (process.env.ACPTOAPI_EXTRA_PROVIDERS_DISABLE === '1') return;
   try {
     const extraProviders = require('./lib/extra-providers');
-    extraProviders.loadAndRegisterAsync().catch(() => {});
+    extraProviders.start();
   } catch { /* never let extra-provider registration block a real chat call */ }
 }
 // registerCandidates the CALLER's own explicit chain so the readiness prober
