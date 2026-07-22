@@ -1,3 +1,28 @@
+// Load ~/.acptoapi/.env (and the package's own dev .env) for ANY consumer of
+// this library, not just the standalone bin/acptoapi.js CLI/daemon -- which
+// was previously the ONLY place this loading happened. A key that exists
+// only in ~/.acptoapi/.env (never set at the OS/shell environment level, and
+// never duplicated into a consumer's own .env) silently never reached
+// process.env for an in-process consumer like freddie/casey, so keyring.js's
+// _collectFromEnv found nothing for it and the provider was never a real
+// candidate anywhere in buildAutoChain -- live-witnessed: a real, valid
+// KILO_API_KEY sat in ~/.acptoapi/.env, PROVIDER_ORDER even explicitly
+// listed kilo, yet the key never reached any running process because only
+// the CLI entry point loaded that file. Same precedence as bin/acptoapi.js:
+// the package's own dev .env loads first, the user's ~/.acptoapi/.env loads
+// second so it can override. Both loads are best-effort (file may not
+// exist) and must never throw -- a missing/unreadable .env degrades to
+// "nothing extra loaded", identical to today's behavior, not a crash.
+try {
+  const path = require('path');
+  const os = require('os');
+  const fs = require('fs');
+  const devDotEnv = path.join(__dirname, '.env');
+  const userDotEnv = path.join(os.homedir(), '.acptoapi', '.env');
+  if (fs.existsSync(devDotEnv)) require('dotenv').config({ path: devDotEnv });
+  if (fs.existsSync(userDotEnv)) require('dotenv').config({ path: userDotEnv });
+} catch { /* dotenv loading is best-effort; never block the library from loading */ }
+
 const { getClient } = require('./lib/client');
 const { GeminiError, withRetry } = require('./lib/errors');
 const { convertMessages, convertTools, cleanSchema, extractModelId, buildConfig } = require('./lib/convert');
