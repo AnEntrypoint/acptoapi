@@ -1,27 +1,15 @@
-// Load ~/.acptoapi/.env (and the package's own dev .env) for ANY consumer of
-// this library, not just the standalone bin/acptoapi.js CLI/daemon -- which
-// was previously the ONLY place this loading happened. A key that exists
-// only in ~/.acptoapi/.env (never set at the OS/shell environment level, and
-// never duplicated into a consumer's own .env) silently never reached
-// process.env for an in-process consumer like freddie/casey, so keyring.js's
-// _collectFromEnv found nothing for it and the provider was never a real
-// candidate anywhere in buildAutoChain -- live-witnessed: a real, valid
-// KILO_API_KEY sat in ~/.acptoapi/.env, PROVIDER_ORDER even explicitly
-// listed kilo, yet the key never reached any running process because only
-// the CLI entry point loaded that file. Same precedence as bin/acptoapi.js:
-// the package's own dev .env loads first, the user's ~/.acptoapi/.env loads
-// second so it can override. Both loads are best-effort (file may not
-// exist) and must never throw -- a missing/unreadable .env degrades to
-// "nothing extra loaded", identical to today's behavior, not a crash.
-try {
-  const path = require('path');
-  const os = require('os');
-  const fs = require('fs');
-  const devDotEnv = path.join(__dirname, '.env');
-  const userDotEnv = path.join(os.homedir(), '.acptoapi', '.env');
-  if (fs.existsSync(devDotEnv)) require('dotenv').config({ path: devDotEnv });
-  if (fs.existsSync(userDotEnv)) require('dotenv').config({ path: userDotEnv });
-} catch { /* dotenv loading is best-effort; never block the library from loading */ }
+function loadDotEnvFilesForLibraryConsumers() {
+  try {
+    const path = require('path');
+    const os = require('os');
+    const fs = require('fs');
+    const packageDotEnvPath = path.join(__dirname, '.env');
+    const userHomeDotEnvPath = path.join(os.homedir(), '.acptoapi', '.env');
+    if (fs.existsSync(packageDotEnvPath)) require('dotenv').config({ path: packageDotEnvPath });
+    if (fs.existsSync(userHomeDotEnvPath)) require('dotenv').config({ path: userHomeDotEnvPath });
+  } catch {}
+}
+loadDotEnvFilesForLibraryConsumers();
 
 const { getClient } = require('./lib/client');
 const { GeminiError, withRetry } = require('./lib/errors');
@@ -144,82 +132,42 @@ const modelProber = require('./lib/model-prober');
 const readiness = require('./lib/readiness');
 const availability = require('./lib/availability');
 
-// Auto-start the preemptive readiness prober (lib/readiness.js) on first real
-// chat/chatChain call, for EVERY consumer of this library -- not just
-// lib/server.js's standalone HTTP server, which was the only caller of
-// readiness.start() before this. A caller that uses acptoapi in-process (no
-// server.js involved at all -- e.g. freddie's acptoapi-bridge.js, which is
-// how casey actually consumes this package) previously got the fully REACTIVE
-// chain-fallback behavior only: no request ever led with a recently-verified
-// live model, so a real user turn always paid for discovering a rate-limited/
-// overloaded provider itself before falling through. Lazy (not boot-time) so
-// a script that only imports the library for something else (a one-shot CLI
-// call, a test) never pays the prober's background cost; the first REAL chat
-// call is "acptoapi is actually being used to serve chat," the correct signal
-// to start keeping the chain warm. Idempotent (readiness.start() no-ops if
-// already running) and opt-out via ACPTOAPI_READINESS_DISABLE=1, matching the
-// rest of this project's default-on/env-opt-out convention.
-let _readinessStarted = false;
-function _ensureReadinessStarted() {
-  if (_readinessStarted) return;
-  _readinessStarted = true;
-  if (process.env.ACPTOAPI_READINESS_DISABLE === '1') return;
-  try { readiness.start() } catch { /* never let the prober block a real chat call */ }
+function startOnceOnFirstRealCall(disableEnvVar, startFn) {
+  let started = false;
+  return function ensureStarted() {
+    if (started) return;
+    started = true;
+    if (process.env[disableEnvVar] === '1') return;
+    try { startFn(); } catch {}
+  };
 }
-// SAME CLASS OF GAP as readiness above, found live: lib/extra-providers.js's
-// getChainLinks() (what buildAutoChain actually reads for a caller's
-// ~/.acptoapi/extra-providers.txt entries) is cache-only/synchronous by
-// design -- it can only surface a provider that was ALREADY live-probed by
-// SOME process and cached to disk. The actual live probe
-// (loadAndRegisterAsync) was, before this fix, called ONLY from
-// lib/server.js's standalone HTTP server boot path -- an in-process
-// consumer (casey via freddie's acptoapi-bridge.js, exactly like the
-// readiness gap above) never triggered it at all. Live-witnessed: a real,
-// currently-configured, working extra-provider entry in
-// ~/.acptoapi/extra-providers.txt had ZERO cache entry (the cache held only
-// stale entries from previously-replaced provider URLs) and was completely
-// absent from every chain build all session, even though the endpoint
-// itself was reachable and had already recorded real successes elsewhere.
-// Same fix shape: lazy first-real-call trigger, fire-and-forget (never
-// blocks or throws into the calling chat/chatChain), idempotent.
-// PERIODIC, not one-shot: extra-providers.js's own start() (mirroring
-// readiness.js's pattern) fires an immediate probe then re-probes on an
-// interval, so a single transient failure (a tight 8s PROBE_TIMEOUT racing
-// boot-time contention from every OTHER concurrent probe) self-heals on the
-// next tick instead of permanently excluding a genuinely working provider
-// for the rest of the process's life -- see extra-providers.js start()'s own
-// comment for the live-witnessed bug this replaced (a one-shot latch here).
-let _extraProvidersStarted = false;
-function _ensureExtraProvidersStarted() {
-  if (_extraProvidersStarted) return;
-  _extraProvidersStarted = true;
-  if (process.env.ACPTOAPI_EXTRA_PROVIDERS_DISABLE === '1') return;
-  try {
-    const extraProviders = require('./lib/extra-providers');
-    extraProviders.start();
-  } catch { /* never let extra-provider registration block a real chat call */ }
-}
-// registerCandidates the CALLER's own explicit chain so the readiness prober
-// keeps THOSE specific models warm, not just the generic auto-chain -- see
-// lib/readiness.js's registerCandidates doc for why this matters: without
-// it, a caller's own configured provider (e.g. casey's CASEY_LLM_MODEL) that
-// falls into a long sampler backoff after a burst of real failures has no
-// path back to "known healthy" except another real chat call, which
-// pre-emptive skip prevents from happening -- it can sit artificially
-// blacklisted for up to 8 minutes after actually recovering. A plain model
-// string with no comma is a SINGLE link, still worth registering (a caller
-// with one fixed model benefits from the same warm-keeping).
-function _registerChainModels(modelsOrChain) {
+
+const ensureReadinessStarted = startOnceOnFirstRealCall('ACPTOAPI_READINESS_DISABLE', () => readiness.start());
+const ensureExtraProvidersStarted = startOnceOnFirstRealCall('ACPTOAPI_EXTRA_PROVIDERS_DISABLE', () => require('./lib/extra-providers').start());
+
+function registerChainModelsForReadiness(modelsOrChain) {
   try {
     if (Array.isArray(modelsOrChain)) {
       readiness.registerCandidates(modelsOrChain.map(m => typeof m === 'string' ? m : (m && m.model)).filter(Boolean));
     } else if (typeof modelsOrChain === 'string') {
       readiness.registerCandidates(modelsOrChain.includes(',') ? modelsOrChain.split(',').map(s => s.trim()).filter(Boolean) : [modelsOrChain]);
     }
-  } catch { /* never let candidate registration block a real chat call */ }
+  } catch {}
 }
-function chat(opts) { _ensureReadinessStarted(); _ensureExtraProvidersStarted(); if (opts && opts.model) _registerChainModels(opts.model); return _chat(opts); }
-function chatChain(models, opts) { _ensureReadinessStarted(); _ensureExtraProvidersStarted(); _registerChainModels(models); return _chatChain(models, opts); }
+
+function chat(opts) {
+  ensureReadinessStarted();
+  ensureExtraProvidersStarted();
+  if (opts && opts.model) registerChainModelsForReadiness(opts.model);
+  return _chat(opts);
+}
+
+function chatChain(models, opts) {
+  ensureReadinessStarted();
+  ensureExtraProvidersStarted();
+  registerChainModelsForReadiness(models);
+  return _chatChain(models, opts);
+}
 
 module.exports = { streamGemini, createFullStream, generateGemini, streamRouter, generateRouter, createRouter, convertMessages, convertTools, cleanSchema, GeminiError, BridgeError, AuthError, RateLimitError, TimeoutError, ContextWindowError, ContentPolicyError, ProviderError, classifyError, redactKeys, streamACP, generateACP, translate, translateSync, buffer, stream, getFormat, FORMATS, getProvider, PROVIDERS, createStreamActor, Anthropic, OpenAI, createAnthropicServer, createOpenAIServer, resolveModel, chat, chain, fallback, chatChain, streamChain, listNamedChains, getRunHistory, sdkStream, buildAutoChain, DEFAULT_ORDER, DEFAULT_MODELS, hasProvider, getOrder, createCircuitBreaker, createSampler: sampler.createSampler, isAvailable: sampler.isAvailable, markFailed: sampler.markFailed, markOk: sampler.markOk, resetAvailability: sampler.resetAvailability, getStatus: sampler.getStatus, peekStatus: sampler.peekStatus, probe: sampler.probe, startSampler: sampler.startSampler, stopSampler: sampler.stopSampler, PROVIDER_KEYS, PROVIDER_DEFAULTS, probeModels: modelProber.probeModels, getCachedModels: modelProber.getCachedModels, createModelProber: modelProber.createModelProber, listAllModelsAndQueues, parseCommaList, splitPrefix, resolveQueue, listAllQueues, loadMatrix, matrixScore, clearMatrixCache, getModelScore, sortByBenchmark, runClaude, startReadiness: readiness.start, stopReadiness: readiness.stop, peekReadiness: readiness.peek, runReadinessOnce: readiness.runOnce, registerReadinessCandidates: readiness.registerCandidates, recordModelSuccess: availability.recordSuccess, recordModelFailure: availability.recordFailure, peekModelAvailability: availability.peek };
 
