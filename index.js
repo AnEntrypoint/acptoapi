@@ -145,6 +145,43 @@ function startOnceOnFirstRealCall(disableEnvVar, startFn) {
 const ensureReadinessStarted = startOnceOnFirstRealCall('ACPTOAPI_READINESS_DISABLE', () => readiness.start());
 const ensureExtraProvidersStarted = startOnceOnFirstRealCall('ACPTOAPI_EXTRA_PROVIDERS_DISABLE', () => require('./lib/extra-providers').start());
 
+// Live-witnessed real race: extra-providers.js's start() (above) is
+// fire-and-forget -- its first registration pass runs in the background,
+// unawaited. A chain built (buildAutoChain -> extra-0/* candidates, drawn
+// from PERSISTED availability history that outlives any single process) on
+// this same first real call can reference an extra-N/* model before that
+// prefix has finished registering in THIS process's own memory, at which
+// point extra-providers.js's isMultiModelPrefix(prefix) wrongly reports
+// false (nothing registered yet) -- so chain-machine.js's aggregator-vs-
+// single-backend sampler-backoff exemption isn't active yet, and one
+// early failure on that aggregator cascades prefix-wide sampler backoff
+// across every other sibling model, exactly the multi-model-aggregator
+// bug this exemption exists to prevent, but only during this narrow
+// cold-start window. Directly reproduced live via casey's own selftest
+// harness: a fresh process's first real turn hit this exact race and
+// degraded a turn that would otherwise have succeeded.
+//
+// Fixed by blocking the FIRST chat()/chatChain() call (only) on the
+// initial registration pass completing, with a bounded timeout so a slow
+// or misconfigured extra-providers.txt can never hang a real turn
+// indefinitely -- once initial registration is done (or the timeout
+// elapses), every later call proceeds exactly as before (extra-providers'
+// own start() periodic task keeps re-probing in the background).
+let extraProvidersReadyPromise = null;
+function ensureExtraProvidersReady() {
+  ensureExtraProvidersStarted();
+  if (process.env.ACPTOAPI_EXTRA_PROVIDERS_DISABLE === '1') return Promise.resolve();
+  if (!extraProvidersReadyPromise) {
+    const boundMs = Number(process.env.ACPTOAPI_EXTRA_PROVIDERS_BOOT_WAIT_MS) || 15000;
+    const ep = require('./lib/extra-providers');
+    extraProvidersReadyPromise = Promise.race([
+      ep.loadAndRegisterAsync(),
+      new Promise(resolve => setTimeout(resolve, boundMs)),
+    ]).catch(() => {});
+  }
+  return extraProvidersReadyPromise;
+}
+
 function registerChainModelsForReadiness(modelsOrChain) {
   try {
     if (Array.isArray(modelsOrChain)) {
@@ -155,16 +192,23 @@ function registerChainModelsForReadiness(modelsOrChain) {
   } catch {}
 }
 
-function chat(opts) {
+async function chat(opts) {
   ensureReadinessStarted();
-  ensureExtraProvidersStarted();
-  if (opts && opts.model) registerChainModelsForReadiness(opts.model);
+  // Only actually wait when the request can resolve to an extra-N/* model
+  // (a literal 'auto' or comma-chain build, or already an explicit
+  // extra-N/... model) -- a request pinned to a real static brand never
+  // touches extra-providers at all, so it must never pay this wait.
+  const model = opts && opts.model;
+  const touchesExtraProviders = model === 'auto' || (typeof model === 'string' && (model.includes(',') || /^extra-\d+\//.test(model)));
+  if (touchesExtraProviders) await ensureExtraProvidersReady();
+  else ensureExtraProvidersStarted();
+  if (model) registerChainModelsForReadiness(model);
   return _chat(opts);
 }
 
-function chatChain(models, opts) {
+async function chatChain(models, opts) {
   ensureReadinessStarted();
-  ensureExtraProvidersStarted();
+  await ensureExtraProvidersReady();
   registerChainModelsForReadiness(models);
   return _chatChain(models, opts);
 }
