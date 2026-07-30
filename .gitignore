@@ -67,6 +67,7 @@ rs-learn.db
 .gm/exec-spool/.gm-plugkit-stale.json
 .gm/disciplines/codeinsight-vec/
 .gm/.gm-continue-count
+.gm/config-source-cache-*
 .plugkit-browser-profile/
 .plugkit-browser-profile-*/
 .claude/worktrees/
