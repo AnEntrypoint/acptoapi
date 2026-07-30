@@ -5,6 +5,15 @@ Each line is prefixed `feat:`, `fix:`, `BREAKING:`, or `deprecation:` (with a mi
 Patch-level CI version bumps (`ci: bump version [skip ci]`) are omitted as separate entries;
 their content is folded into the following real entry. Plain ASCII only.
 
+## [1.0.197] - 2026-07-30
+
+- fix: replaced two dead default model ids (`cerebras/zai-org/glm-5.2`, `opencode-zen/hy3-free`) confirmed non-existent via live `/v1/models` probes, across `lib/server.js`, `lib/auto-chain.js`, and the `glm-zen` named chain.
+- fix: `buildAutoChain` no longer lets audio/embedding/OCR/moderation/TTS/FIM models (e.g. `whisper-large-v3-turbo`, `mistral-code-fim-latest`) into the chat-completion chain unconditionally - the capability filter previously only ran when a request needed tools.
+- fix: `extra-providers.js` derived a fresh incrementing prefix (`extra-0`, `extra-1`, ...) for the same configured base URL on every process restart, leaking one stale zero-model brand-catalog cache entry per restart (274 found live). Prefixes are now a deterministic hash of the base URL, stable across restarts.
+- feat: round-robin chain interleaving now avoids placing two re-hosted wrappers of the same underlying model back-to-back (e.g. `anthropic/claude-opus-5` served by both `openrouter` and `opencode-zen`) - a same-model-family pick is deferred to the end of the interleave instead of sitting next to its own twin.
+- feat: `availability.js` gained a soft-failure signal (`recordSoftFailure`/`recordSoftSuccess`) for responses that succeed but look like a refusal or a truncated cutoff - demotes future ranking without tripping the sampler circuit breaker, since the call itself didn't fail.
+- docs: fixed `/debug/translate` example curl in AGENTS.md, which used a brand name (`groq`) `translate()`'s `getProvider()` doesn't recognize.
+
 ## [1.0.131] - 2026-07-02
 
 - fix: `chain/<name>` now falls back to the `named-chains.js` builtin registry instead of failing when the name isn't in a runtime config.

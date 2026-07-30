@@ -695,7 +695,13 @@ curl -s http://127.0.0.1:4800/v1/runs | jq '.runs[-1] | {requestedModel, finalMo
 curl -s http://127.0.0.1:4800/debug/auto-chain | jq '.available'
 curl -s http://127.0.0.1:4800/debug/probe-live?force=1 | jq '.chain'
 curl -s -X POST http://127.0.0.1:4800/debug/translate -H 'content-type: application/json' \
-  -d '{"from":"openai","to":"anthropic","provider":"groq","model":"groq/llama-3.3-70b-versatile","messages":[{"role":"user","content":"hi"}]}'
+  -d '{"from":"openai","to":"anthropic","provider":"anthropic","model":"claude-haiku-4-5","messages":[{"role":"user","content":"hi"}]}'
+# Note: /debug/translate exercises the translate() pipeline directly, which only
+# recognizes the 8 core providers (openai, kilo, anthropic, anthropic-via-openai,
+# ollama, bedrock, gemini, unknown) -- brand prefixes like groq/openrouter/mistral
+# route via HTTP passthrough (handleBrandChat), never through translate(), and
+# will 500 with "Unknown provider" here. Use /v1/chat/completions with a
+# brand-prefixed model (e.g. model:"groq/llama-3.3-70b-versatile") to test those.
 ```
 
 ### Field interpretation
