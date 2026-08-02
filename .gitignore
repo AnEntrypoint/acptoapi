@@ -97,3 +97,5 @@ testreq.json
 .gm/pw-sock-*/
 .agentplug-kv/
 .gm/gm.db
+
+.agentplug/
