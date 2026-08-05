@@ -16,6 +16,8 @@ const { GeminiError, withRetry } = require('./lib/errors');
 const { convertMessages, convertTools, cleanSchema, extractModelId, buildConfig } = require('./lib/convert');
 const { guardStream } = require('./lib/stream-guard');
 
+const MAX_TOOL_ITERATIONS = Number(process.env.ACPTOAPI_MAX_TOOL_ITERATIONS) || 50;
+
 function streamGemini({ model, system, messages, tools, onStepFinish, apiKey,
   temperature, maxOutputTokens, topP, topK, safetySettings, responseModalities }) {
   return {
@@ -29,7 +31,14 @@ async function* createFullStream({ model, system, messages, tools, onStepFinish,
   const modelId = extractModelId(model);
   let contents = convertMessages(messages);
   const { config } = buildConfig({ system, tools, temperature, maxOutputTokens, topP, topK, safetySettings, responseModalities });
+  let iterations = 0;
   while (true) {
+    if (++iterations > MAX_TOOL_ITERATIONS) {
+      yield { type: 'error', error: new GeminiError(`tool-call loop exceeded MAX_TOOL_ITERATIONS (${MAX_TOOL_ITERATIONS})`, { retryable: false }) };
+      yield { type: 'finish-step', finishReason: 'error' };
+      if (onStepFinish) await onStepFinish();
+      return;
+    }
     yield { type: 'start-step' };
     try {
       const stream = await withRetry(() => client.models.generateContentStream({ model: modelId, contents, config }));
@@ -71,7 +80,7 @@ async function* createFullStream({ model, system, messages, tools, onStepFinish,
       yield { type: 'error', error: err };
       yield { type: 'finish-step', finishReason: 'error' };
       if (onStepFinish) await onStepFinish();
-      return;
+      throw err;
     }
   }
 }
@@ -81,7 +90,9 @@ async function generateGemini({ model, system, messages, tools, apiKey, temperat
   const modelId = extractModelId(model);
   let contents = convertMessages(messages);
   const { config } = buildConfig({ system, tools, temperature, maxOutputTokens, topP, topK, safetySettings, responseModalities });
+  let iterations = 0;
   while (true) {
+    if (++iterations > MAX_TOOL_ITERATIONS) throw new GeminiError(`tool-call loop exceeded MAX_TOOL_ITERATIONS (${MAX_TOOL_ITERATIONS})`, { retryable: false });
     const response = await withRetry(() => client.models.generateContent({ model: modelId, contents, config }));
     const candidate = response.candidates?.[0];
     if (!candidate) throw new GeminiError('No candidates returned', { retryable: false });

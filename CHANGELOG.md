@@ -5,6 +5,10 @@ Each line is prefixed `feat:`, `fix:`, `BREAKING:`, or `deprecation:` (with a mi
 Patch-level CI version bumps (`ci: bump version [skip ci]`) are omitted as separate entries;
 their content is folded into the following real entry. Plain ASCII only.
 
+## [1.0.200] - 2026-08-02
+
+- fix: strict-host format discovery no longer wrongly rejects hosts that 404 ANY unknown model id (e.g. `api.moonshot.ai`) - `discoverOpenAI`/`discoverAnthropic` now retry a fully-404 pass with the entry's first pre-declared model before concluding "no endpoint here".
+
 ## [1.0.197] - 2026-07-30
 
 - fix: replaced two dead default model ids (`cerebras/zai-org/glm-5.2`, `opencode-zen/hy3-free`) confirmed non-existent via live `/v1/models` probes, across `lib/server.js`, `lib/auto-chain.js`, and the `glm-zen` named chain.
