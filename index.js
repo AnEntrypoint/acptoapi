@@ -122,7 +122,7 @@ async function generateGemini({ model, system, messages, tools, apiKey, temperat
 const { streamRouter, generateRouter, createRouter } = require('./lib/router-stream');
 const { BridgeError, AuthError, RateLimitError, TimeoutError, ContextWindowError, ContentPolicyError, ProviderError, classifyError, redactKeys } = require('./lib/errors');
 const { streamACP, generateACP } = require('./lib/providers/acp');
-const { translate, translateSync, buffer, stream } = require('./lib/translate');
+const { translate, translateSync, buffer, stream: translateStream } = require('./lib/translate');
 const { getFormat, FORMATS } = require('./lib/formats/index');
 const { getProvider, PROVIDERS } = require('./lib/providers/index');
 const { createStreamActor } = require('./lib/machine');
@@ -130,7 +130,7 @@ const { Anthropic } = require('./lib/sdk/anthropic');
 const { OpenAI } = require('./lib/sdk/openai');
 const { createAnthropicServer } = require('./lib/server/anthropic');
 const { createOpenAIServer } = require('./lib/server/openai');
-const { resolveModel, chat: _chat, chain, fallback, chatChain: _chatChain, streamChain, listNamedChains, getRunHistory, listAllModelsAndQueues, parseCommaList, splitPrefix } = require('./lib/sdk');
+const { resolveModel, chat: _chat, chain, fallback, chatChain: _chatChain, streamChain, resolveNamedChain, listNamedChains, getRunHistory, listAllModelsAndQueues, parseCommaList, splitPrefix } = require('./lib/sdk');
 const { resolveQueue, listAllQueues } = require('./lib/queues');
 const { loadMatrix, matrixScore, clearMatrixCache } = require('./lib/matrix');
 const sdkStream = require('./lib/sdk').stream;
@@ -224,7 +224,7 @@ async function chatChain(models, opts) {
   return _chatChain(models, opts);
 }
 
-module.exports = { streamGemini, createFullStream, generateGemini, streamRouter, generateRouter, createRouter, convertMessages, convertTools, cleanSchema, GeminiError, BridgeError, AuthError, RateLimitError, TimeoutError, ContextWindowError, ContentPolicyError, ProviderError, classifyError, redactKeys, streamACP, generateACP, translate, translateSync, buffer, stream, getFormat, FORMATS, getProvider, PROVIDERS, createStreamActor, Anthropic, OpenAI, createAnthropicServer, createOpenAIServer, resolveModel, chat, chain, fallback, chatChain, streamChain, listNamedChains, getRunHistory, sdkStream, buildAutoChain, DEFAULT_ORDER, DEFAULT_MODELS, hasProvider, getOrder, createCircuitBreaker, createSampler: sampler.createSampler, isAvailable: sampler.isAvailable, markFailed: sampler.markFailed, markOk: sampler.markOk, resetAvailability: sampler.resetAvailability, getStatus: sampler.getStatus, peekStatus: sampler.peekStatus, probe: sampler.probe, startSampler: sampler.startSampler, stopSampler: sampler.stopSampler, PROVIDER_KEYS, PROVIDER_DEFAULTS, probeModels: modelProber.probeModels, getCachedModels: modelProber.getCachedModels, createModelProber: modelProber.createModelProber, listAllModelsAndQueues, parseCommaList, splitPrefix, resolveQueue, listAllQueues, loadMatrix, matrixScore, clearMatrixCache, getModelScore, sortByBenchmark, runClaude, startReadiness: readiness.start, stopReadiness: readiness.stop, peekReadiness: readiness.peek, runReadinessOnce: readiness.runOnce, registerReadinessCandidates: readiness.registerCandidates, recordModelSuccess: availability.recordSuccess, recordModelFailure: availability.recordFailure, peekModelAvailability: availability.peek };
+module.exports = { streamGemini, createFullStream, generateGemini, streamRouter, generateRouter, createRouter, convertMessages, convertTools, cleanSchema, GeminiError, BridgeError, AuthError, RateLimitError, TimeoutError, ContextWindowError, ContentPolicyError, ProviderError, classifyError, redactKeys, streamACP, generateACP, translate, translateSync, buffer, translateStream, getFormat, FORMATS, getProvider, PROVIDERS, createStreamActor, Anthropic, OpenAI, createAnthropicServer, createOpenAIServer, resolveModel, chat, chain, fallback, chatChain, streamChain, resolveNamedChain, listNamedChains, getRunHistory, stream: sdkStream, sdkStream, buildAutoChain, DEFAULT_ORDER, DEFAULT_MODELS, hasProvider, getOrder, createCircuitBreaker, createSampler: sampler.createSampler, isAvailable: sampler.isAvailable, markFailed: sampler.markFailed, markOk: sampler.markOk, resetAvailability: sampler.resetAvailability, getStatus: sampler.getStatus, peekStatus: sampler.peekStatus, probe: sampler.probe, startSampler: sampler.startSampler, stopSampler: sampler.stopSampler, PROVIDER_KEYS, PROVIDER_DEFAULTS, probeModels: modelProber.probeModels, getCachedModels: modelProber.getCachedModels, createModelProber: modelProber.createModelProber, listAllModelsAndQueues, parseCommaList, splitPrefix, resolveQueue, listAllQueues, loadMatrix, matrixScore, clearMatrixCache, getModelScore, sortByBenchmark, runClaude, startReadiness: readiness.start, stopReadiness: readiness.stop, peekReadiness: readiness.peek, runReadinessOnce: readiness.runOnce, registerReadinessCandidates: readiness.registerCandidates, recordModelSuccess: availability.recordSuccess, recordModelFailure: availability.recordFailure, peekModelAvailability: availability.peek };
 
 async function runClaude(opts = {}) {
   const { spawn } = require('child_process');
