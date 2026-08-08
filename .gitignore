@@ -77,7 +77,6 @@ rs-learn.db
 
 
 .codeinsight.digest
-.env
 *.log
 *.err
 probe*.out
@@ -99,3 +98,4 @@ testreq.json
 .gm/gm.db
 
 .agentplug/
+config.bat
