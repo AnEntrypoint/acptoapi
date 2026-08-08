@@ -125,7 +125,7 @@ export const GeminiError: typeof BridgeError;
 export function classifyError(status: number, message: string, provider?: string): BridgeError;
 export function redactKeys(str: string): string;
 
-export type FallbackReason = 'error' | 'timeout' | 'rate_limit' | 'empty' | 'content_policy';
+export type FallbackReason = 'error' | 'timeout' | 'rate_limit' | 'empty' | 'content_policy' | 'sampler_backoff' | 'matrix_block' | 'auth' | 'fetch_failed';
 export interface ChainLink {
   model: string;
   timeout?: number;
@@ -176,6 +176,7 @@ export function resolveModel(model: string): ResolvedModel;
 export function parseCommaList(model: string): string[] | null;
 export function chat(opts: Record<string, unknown>): Promise<unknown>;
 export function stream(opts: Record<string, unknown>): AsyncIterable<unknown>;
+export function translateStream(opts: Record<string, unknown>): { fullStream: AsyncIterable<unknown>; warnings: Promise<unknown[]> };
 export function chatChain(models: string | (string | ChainLink)[], opts: Record<string, unknown>): Promise<unknown>;
 export function streamChain(models: string | (string | ChainLink)[], opts: Record<string, unknown>): AsyncIterable<unknown>;
 export function resolveNamedChain(name: string): { links: ChainLink[]; defaults: Record<string, unknown> } | null;

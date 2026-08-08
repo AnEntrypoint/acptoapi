@@ -32,7 +32,7 @@ Server-level injection: `createServer({queuesProvider: () => ({...})})`  - provi
 - Before invocation, `sampler.isAvailable(prefix)` consulted  - if backoff-blocked, link is skipped without an attempt (reason `sampler_backoff`).
 - If `opts.matrixSource` is set (file path, URL, or function returning `{providers: [{id, models: [{id, usable_in_any_mode, modes}]}]}`), cells with `ok:false` for any mode are demoted to the END of the chain. `matrix_block` reason if encountered.
 - On link failure (`error`/`rate_limit`/`timeout`/`empty`/`content_policy`), `onFallback({from, to, reason, error})` fires, chain advances.
-- **`sampler.markFailed(prefix)` is NOT called when the next link shares the same prefix**  - preserves "bad model id, try sibling" without triggering full provider backoff.
+- **`sampler.markFailed(prefix)` is skipped for aggregator prefixes** (a prefix registered as fronting more than one distinct model) so a bad model id under a multi-brand proxy doesn't back off the whole prefix — per-model `lib/availability.js` tracking already covers that case. See "Superseded: the old sibling-prefix comparison is gone" under Error Classification below for the full current gate (this no longer compares against the next link's prefix, and a bare `error` reason DOES now trip the sampler).
 - On exhaustion, throws with `err.chainHistory` and `err.attempted` populated.
 
 ### Inspection helpers
@@ -135,9 +135,9 @@ Every provider envKey (e.g. `GROQ_API_KEY`) accepts N keys seamlessly:
 - Additional: `GROQ_API_KEY_1` ... `GROQ_API_KEY_99` (each contributes one key, in declared order, deduped)
 - Escape hatch: `ACPTOAPI_KEYS_GROQ_API_KEY=["key-a","key-b"]` (JSON array)
 
-`lib/keyring.js` is the single source of truth  - `getKey(envKey)` returns the first usable key (skipping cooldown-blocked ones); `listUsable(envKey)` returns all currently-usable keys in declared order; `markKeyFailed(envKey, key, reason)` records a per-key backoff with steps `[30s, 60s, 2m, 4m, 8m]` mirroring `lib/sampler.js`. Classification: 401/403 -> `auth`, 429 -> `rate_limit`, 5xx -> `upstream_5xx` (not backoff-worthy; provider issue not key issue).
+`lib/keyring.js` is the single source of truth  - `getKey(envKey)` returns the first usable key (skipping cooldown-blocked ones); `listUsable(envKey)` returns all currently-usable keys in declared order; `markKeyFailed(envKey, key, reason)` records a per-key backoff with steps `[30s, 60s, 2m, 4m, 8m]` (`BACKOFF_STEPS_MS`, keyring.js:6 — its own comment says these steps mirror `lib/sampler.js`, but the two schedules have since diverged, see "Sampler backoff strategy" below). Classification: 401/403 -> `auth`, 429 -> `rate_limit`, 5xx -> `upstream_5xx` (not backoff-worthy; provider issue not key issue).
 
-`handleBrandChat` and `handleEmbeddings` in `lib/server.js` rotate keys inline on `auth`/`rate_limit` responses, only falling through to the next chain link after every key for the provider is exhausted. Server log emits `[acptoapi] key-rotate provider=<name> reason=<r> key-index=<i> next-index=<i+1>` on each rotation.
+`handleBrandChat` in `lib/server.js` rotates keys inline on `auth`/`rate_limit` responses, only falling through to the next chain link after every key for the provider is exhausted. Server log emits `[acptoapi] key-rotate provider=<name> reason=<r> key-index=<i> next-index=<i+1>` on each rotation. (`POST /v1/embeddings` no longer exists as a live route  - `handleEmbeddingsGone` always returns `410 {code:'embeddings_not_here'}`, see "Brand Routing" below; embeddings moved to rs-learn's native embedder.)
 
 Direct `process.env[envKey]` reads outside `lib/keyring.js` are forbidden for known provider keys  - all consumers (sdk.js, server.js, passthrough.js, media-passthrough.js, auto-chain.js, model-resolver.js, model-probe-live.js) route through the keyring.
 
@@ -254,7 +254,7 @@ registerDaemon('my-daemon', 9999, [
 
 ### Priority Order
 
-Default: `anthropic, openrouter, groq, nvidia, cerebras, sambanova, mistral, codestral, qwen, zai, cloudflare, gemini, bedrock, opencode-zen, opencode-north, opencode, mimo, ollama, kilo, qwen-code, codex-cli, copilot-cli, cline, hermes-agent, cursor-acp, codeium-cli, acp-cli, chatjimmy`
+Default: `anthropic, openrouter, groq, nvidia, cerebras, sambanova, mistral, codestral, qwen, zai, github-models, cloudflare, gemini, bedrock, opencode-zen, opencode-north, opencode, mimo, ollama, kilo, qwen-code, codex-cli, copilot-cli, cline, hermes-agent, cursor-acp, codeium-cli, acp-cli, chatjimmy, cohere, aion`
 
 - Direct API providers (anthropic, gemini) come first by priority
 - Brand providers (groq, nvidia, etc.) ranked by `PROVIDER_ORDER` env if set
@@ -363,7 +363,7 @@ Mapping raw request bodies through `translate()` requires converting to canonica
 - **Dispatch table**: `lib/openai-brands.js` maps prefix -> vendor URL + env key
 - **Detection**: `splitBrandModel(model)` regex `/^([a-z0-9-]+)\/(.+)$/` extracts prefix and model name; `isBrand(prefix)` validates
 - **Handling**: `lib/server.js` `handleBrandChat()` fetches upstream, streams body through unchanged
-- **API coverage**: Applies to chat, embeddings (`POST /v1/embeddings`), and token counting (`POST /v1/messages/count_tokens`  - heuristic: length / 4)
+- **API coverage**: Applies to chat and token counting (`POST /v1/messages/count_tokens`  - heuristic: length / 4). `POST /v1/embeddings` is NOT brand-routed  - it is a hard `410 {code:'embeddings_not_here'}` (`handleEmbeddingsGone`, server.js:493) since embeddings moved to rs-learn's native embedder; there is no `handleEmbeddings` function in this codebase.
 - **Function URLs**: `getBrand(prefix)` resolves function-valued URLs at call time (e.g., Cloudflare dynamic account URL)
 
 ## Testing: No Mocks, Only Real Backends
@@ -411,7 +411,7 @@ Persistent test server at c:\dev\nim (copy of .env, start.bat launcher script):
 
 `resolveModel(model)` (`lib/sdk.js:21`) resolves a `<provider>/<model>` string to `{provider, model, env, url}`. `splitPrefix` (`lib/sdk.js`) does the prefix/rest split; `resolveQueue` (`lib/queues.js:38`) resolves `queue/<name>` strings; `splitBrandModel` is duplicated independently in `lib/server.js` and `lib/passthrough.js` (NOT a single shared implementation - keep these in sync manually if the split logic changes). Note: `lib/model-resolver.js` is a DIFFERENT module - it probes live models per-provider to pick a strong dynamic default and caches to `~/.acptoapi/models-cache.json`; it is unrelated to the `<provider>/<model>` string-parsing functions above despite the similar name.
 
-`PROVIDER_KEYS` (env var per provider) and `PROVIDER_DEFAULTS` (default model per provider) are exported from `lib/provider-maps.js` and re-exported from `acptoapi` root. Freddie consumes both via `createRequire(import.meta.url)` in `src/agent/llm_resolver.js`  - single source of truth for the 17 supported providers (anthropic, openai, groq, google, mistral, cerebras, nvidia, openrouter, sambanova, codestral, zai, qwen, cloudflare, opencode, kilo, claude-cli, ollama).
+`PROVIDER_KEYS` (env var per provider) and `PROVIDER_DEFAULTS` (default model per provider) are exported from `lib/provider-maps.js` and re-exported from `acptoapi` root. Freddie consumes both via `createRequire(import.meta.url)` in `src/agent/llm_resolver.js`  - single source of truth for provider config. The two maps are different, larger sets than any older "17 providers" figure implies: `PROVIDER_KEYS` (providers needing an env-var API key) currently has 29 entries (groq, openrouter, together, deepseek, xai, cerebras, perplexity, mistral, fireworks, openai, nvidia, sambanova, cloudflare, zai, qwen, codestral, opencode-zen, meta, cohere, aion, github-models, librechat, anthropic, gemini, google, bedrock, opencode, opencode-north, mimo); `PROVIDER_DEFAULTS` (default model per provider, including no-key providers like `kilo`/`claude-cli`/`ollama`) has 34 entries.
 
 Default model selection: if caller passes only `provider`, resolver fills in `PROVIDER_DEFAULTS[provider]`. Updates to the defaults table land in this repo, propagate to freddie on next `npm install` (or `node scripts/sync-upstream.mjs`).
 
@@ -455,7 +455,7 @@ Each attempt is given 600ms to fail-fast (ENOENT, immediate exit) before moving 
 
 ## Default fallback order (2026-05-13)
 
-`lib/auto-chain.js` DEFAULT_ORDER = `anthropic, openrouter, groq, nvidia, cerebras, sambanova, mistral, codestral, qwen, zai, cloudflare, gemini, bedrock, opencode-zen, opencode-north, opencode, mimo, ollama, kilo, qwen-code, codex-cli, copilot-cli, cline, hermes-agent, cursor-acp, codeium-cli, acp-cli, chatjimmy`. There is no `claude` (CLI) entry  - the CLI-spawn path was removed from this repo's scope (see "Scope" section above); `chatjimmy` (always available, no key required) is now the last entry. ACP daemons (`kilo`, `qwen-code`, `codex-cli`, `copilot-cli`, `cline`, `hermes-agent`, `cursor-acp`, `codeium-cli`, `acp-cli`) and always-available built-ins (`ollama`, `opencode`, `chatjimmy`) fill out the tail; direct API/brand providers fill the head in priority order (env-key presence required via `hasProvider()`). Override the whole order with `PROVIDER_ORDER=a,b,c`.
+`lib/auto-chain.js` DEFAULT_ORDER = `anthropic, openrouter, groq, nvidia, cerebras, sambanova, mistral, codestral, qwen, zai, github-models, cloudflare, gemini, bedrock, opencode-zen, opencode-north, opencode, mimo, ollama, kilo, qwen-code, codex-cli, copilot-cli, cline, hermes-agent, cursor-acp, codeium-cli, acp-cli, chatjimmy, cohere, aion`. There is no `claude` (CLI) entry  - the CLI-spawn path was removed from this repo's scope (see "Scope" section above); `chatjimmy` (always available, no key required) is followed by `cohere` and `aion` as the final two entries. ACP daemons (`kilo`, `qwen-code`, `codex-cli`, `copilot-cli`, `cline`, `hermes-agent`, `cursor-acp`, `codeium-cli`, `acp-cli`) and always-available built-ins (`ollama`, `opencode`, `chatjimmy`) fill out the tail; direct API/brand providers fill the head in priority order (env-key presence required via `hasProvider()`). Override the whole order with `PROVIDER_ORDER=a,b,c`.
 
 ## Error Classification  - fallback reasons (lib/chain-machine.js, lib/sampler.js, lib/keyring.js)
 
@@ -465,7 +465,7 @@ Chain fallback is reason-driven. `lib/chain-machine.js` is the single source of 
 
 `FALLBACK_REASONS` (chain-machine.js:4) = `['error', 'timeout', 'rate_limit', 'empty', 'content_policy', 'sampler_backoff', 'matrix_block', 'auth', 'fetch_failed']`.
 
-`classifyError(err)` (chain-machine.js:6) maps a thrown error to a reason:
+`classifyError(err)` (chain-machine.js:8) maps a thrown error to a reason:
 - `err.code === 'RATE_LIMIT'` or message matches `/rate.?limit|429|quota/i` -> `rate_limit`
 - `err.code === 'AUTH'` or message matches `/401|403|invalid api key|unauthorized/i` -> `auth`
 - `err.code === 'FETCH_FAILED'` or message matches `/fetch failed|ECONNREFUSED|ENOTFOUND|ETIMEDOUT/i` -> `fetch_failed`
@@ -473,11 +473,11 @@ Chain fallback is reason-driven. `lib/chain-machine.js` is the single source of 
 - message matches `/content.?policy|safety|blocked/i` -> `content_policy`
 - anything else -> `error`
 
-`sampler_backoff` and `matrix_block` are NOT produced by `classifyError`; they come from `preCheck()` (chain-machine.js:40) **before** a link is invoked  - `sampler_backoff` when `sampler.isAvailable(prefix)` is false, `matrix_block` when the matrix scores the cell `ok:false`. `empty` is synthesized post-call when a finished response yielded no text/tool-call (`isEmptyResult`, chain-machine.js:272).
+`sampler_backoff` and `matrix_block` are NOT produced by `classifyError`; they come from `preCheck()` (chain-machine.js:77) **before** a link is invoked  - `sampler_backoff` when `sampler.isAvailable(prefix)` is false, `matrix_block` when the matrix scores the cell `ok:false`. `empty` is synthesized post-call when a finished response yielded no text/tool-call (`isEmptyResult`, chain-machine.js:342).
 
 ### Terminal vs. trigger-next-link
 
-`shouldFallback(reason, fallbackOn)` (chain-machine.js:21) decides. **When a link has no explicit `fallbackOn`, the default is the FULL `FALLBACK_REASONS` set**  - every reason advances the chain, so a `rate_limit`/`auth`/`timeout`/`content_policy` is never surfaced to the caller as long as another link remains. Only when a caller explicitly narrows `fallbackOn` (e.g. `['error']`) do the omitted reasons become terminal (the error is rethrown immediately).
+`shouldFallback(reason, fallbackOn)` (chain-machine.js:26) decides. **When a link has no explicit `fallbackOn`, the default is the FULL `FALLBACK_REASONS` set**  - every reason advances the chain, so a `rate_limit`/`auth`/`timeout`/`content_policy` is never surfaced to the caller as long as another link remains. Only when a caller explicitly narrows `fallbackOn` (e.g. `['error']`) do the omitted reasons become terminal (the error is rethrown immediately).
 
 - Built-in named chains (`lib/named-chains.js:15`) pin `fallbackOn = ['error', 'rate_limit', 'timeout', 'empty']` per link  - `auth`/`content_policy`/`fetch_failed` are terminal for those chains.
 - `buildAutoChain` links pin `['error','rate_limit','timeout','empty']` likewise.
@@ -485,9 +485,9 @@ Chain fallback is reason-driven. `lib/chain-machine.js` is the single source of 
 
 ### Sampler backoff strategy (lib/sampler.js)
 
-Per-**provider-prefix** (not per-model, not per-key) circuit breaker. `BACKOFF_STEPS_MS = [30000, 60000, 120000, 240000, 480000]` (30s -> 1m -> 2m -> 4m -> 8m, capped). `markFailed(prefix)` increments `failCount` and sets `nextCheck = now + STEPS[min(failCount-1, 4)]`. While `nextCheck > now`, `isAvailable(prefix)` returns false -> `preCheck` blocks the link with reason `sampler_backoff` (no upstream call made). `markOk(prefix)` resets `failCount`/`nextCheck`/`lastFailedAt` to clean.
+Per-**provider-prefix** (not per-model, not per-key) circuit breaker. `PROVIDER_BACKOFF_ESCALATION_MS = [3000, 8000, 20000, 60000, 180000, 480000]` (sampler.js:5; 3s -> 8s -> 20s -> 1m -> 3m -> 8m, capped — NOT the same schedule as `lib/keyring.js`'s per-key `BACKOFF_STEPS_MS`, despite keyring.js's own comment claiming they mirror each other). `markFailed(prefix)` increments `failCount` and sets `nextCheck = now + STEPS[min(failCount-1, STEPS.length-1)]`. While `nextCheck > now`, `isAvailable(prefix)` returns false -> `preCheck` blocks the link with reason `sampler_backoff` (no upstream call made). `markOk(prefix)` resets `failCount`/`nextCheck`/`lastFailedAt` to clean.
 
-**Critical sibling rule** (chain-machine.js:178, :259): `sampler.markFailed(prefix)` is called on a link failure ONLY when `prefix !== nextPrefix` AND `reason !== 'error'`. If the next link shares the same provider prefix (e.g. a bad model id followed by a sibling model on the same provider), the provider is NOT marked failed  - preserves "try a sibling model" without tripping full-provider backoff. A bare `error` reason also never trips the sampler (only the categorized transient reasons do). On link success, `markOk(prefix)` clears the breaker.
+**Superseded: the old sibling-prefix comparison is gone.** This section previously described `sampler.markFailed(prefix)` firing only when `prefix !== nextPrefix` (comparing against the NEXT link's prefix) and never for a bare `error` reason. Neither holds anymore — `lib/chain-machine.js` has no next-link-prefix comparison at all today. The current gate is `markProviderFailed(model, reason, opts)` (chain-machine.js:63): it calls `sampler.markFailed(prefix)` whenever `reason` is in `PROVIDER_LEVEL_HEALTH_REASONS` (chain-machine.js:42 — `['error', 'timeout', 'rate_limit', 'auth', 'fetch_failed', 'empty']`, which now INCLUDES `'error'`) AND the prefix is not an aggregator (`isAggregatorPrefix`, chain-machine.js:54, via `extra-providers.js`'s `isMultiModelPrefix` — a prefix registered as fronting more than one distinct model, e.g. a multi-brand proxy, is exempted because `lib/availability.js`'s per-MODEL tracking already covers it without needing the coarse per-prefix breaker). `content_policy`/`sampler_backoff`/`matrix_block` are still excluded from `PROVIDER_LEVEL_HEALTH_REASONS` and so never trip the sampler. On link success, `markOk(prefix)` clears the breaker (chain-machine.js:256, :306).
 
 The background sampler (`startSampler`, default interval 3600000ms = 1h) re-probes providers whose `nextCheck` has elapsed; `if (interval.unref)` so it never holds the process open.
 
@@ -496,7 +496,7 @@ The background sampler (`startSampler`, default interval 3600000ms = 1h) re-prob
 Two layers, distinct granularity:
 
 1. **Provider-level** (sampler): a `rate_limit` failure trips the prefix breaker per the sibling rule above, demoting the whole provider for the backoff window.
-2. **Key-level** (keyring, per `(envKey, key)`): `handleBrandChat`/`handleEmbeddings` rotate keys INLINE before falling to the next chain link. `keyring.classify(status)` (keyring.js:137): `401|403 -> auth`, `429 -> rate_limit`, `>=500 -> upstream_5xx`. **`upstream_5xx` is deliberately NOT backoff-worthy**  - a 5xx is the provider's fault, not the key's, so the key is not penalized. `markKeyFailed` applies the same `[30s,60s,2m,4m,8m]` per-key backoff for `auth`/`rate_limit`.
+2. **Key-level** (keyring, per `(envKey, key)`): `handleBrandChat` rotates keys INLINE before falling to the next chain link. `keyring.classify(status)` (keyring.js:177): `401|403 -> auth`, `429 -> rate_limit`, `>=500 -> upstream_5xx`. **`upstream_5xx` is deliberately NOT backoff-worthy**  - a 5xx is the provider's fault, not the key's, so the key is not penalized. `markKeyFailed` applies the same `[30s,60s,2m,4m,8m]` per-key backoff for `auth`/`rate_limit`.
 
 **Key rotation order**: `listUsable(envKey)` returns keys in DECLARED order (`GROQ_API_KEY`, then `_1`.._99`, then the `ACPTOAPI_KEYS_<NAME>` JSON-array escape hatch), filtering out any key currently in backoff. `getKey(envKey)` returns the first usable key, or  - when ALL keys are in backoff  - the one whose backoff expires soonest (so callers attempt rather than hard-fail). Server log emits `[acptoapi] key-rotate provider=<name> reason=<r> key-index=<i> next-index=<i+1>` on each rotation. Only after every key for a provider is exhausted does the chain fall through to the next link.
 
@@ -627,7 +627,7 @@ All config files live under `~/.acptoapi/` (`os.homedir()`), each independently 
 
 **Config paths**: `ACPTOAPI_CONFIG`, `THEBIRD_CONFIG`, `ACPTOAPI_QUEUES`, `ACPTOAPI_CHAINS` (inline JSON), `ACPTOAPI_CHAINS_PATH`, `ACPTOAPI_PROBE_CACHE_PATH`, `ACPTOAPI_ACP_PROBE_CACHE`.
 
-**Live probe** (lib/model-probe-live.js): `ACPTOAPI_LIVE_PROBE=1` (force live chain on cold cache; per-request via `x-live-probe: 1` header), `ACPTOAPI_DISABLE_PROBE=1` (disable startup background probe), `ACPTOAPI_PROBE_CAP=N` (max models/provider, default 100), `ACPTOAPI_PROBE_CONCURRENCY=N` (in-flight probes, default 12), `ACPTOAPI_PROBE_TTL_MS=N` (default 600000 = 10min), `ACPTOAPI_PROBE_OLLAMA=1` (include local ollama), `ACPTOAPI_ACP_PROBE_TTL_MS=N` (ACP cache TTL, default 86400000 = 24h), `ACPTOAPI_PROBE_INTERVAL_MS=N` (sampler interval, default 3600000 = 1h).
+**Live probe** (lib/model-probe-live.js): `ACPTOAPI_LIVE_PROBE=1` (force live chain on cold cache; per-request via `x-live-probe: 1` header), `ACPTOAPI_DISABLE_PROBE=1` (disable startup background probe), `ACPTOAPI_PROBE_TTL_MS=N` (default 600000 = 10min), `ACPTOAPI_PROBE_CACHE_PATH=<file>` (default `~/.acptoapi/probe-cache.json`), `ACPTOAPI_ACP_PROBE_TTL_MS=N` (ACP cache TTL, default 86400000 = 24h), `ACPTOAPI_PROBE_INTERVAL_MS=N` (sampler interval, default 3600000 = 1h). (`ACPTOAPI_PROBE_CAP`, `ACPTOAPI_PROBE_CONCURRENCY`, and `ACPTOAPI_PROBE_OLLAMA` do NOT exist anywhere in the codebase — see the correction note above; do not reintroduce them here.)
 
 **Boot probe** (lib/server.js, in the `server.listen` callback): ~5s after the server starts listening (after ACP daemon autolaunch is kicked off), a fire-and-forget `getAvailableModelsLive({force: true})` runs once so the probe cache has real data before the first user request, rather than only being populated by an explicit `?force=1` debug call or `ACPTOAPI_LIVE_PROBE=1`. It never blocks `server.listen`'s callback (not awaited, `.catch(() => {})`, timer is `.unref()`'d). `ACPTOAPI_DISABLE_BOOT_PROBE=1` skips it entirely. It also self-skips when `ACPTOAPI_DISABLE_PROBE=1` is set (existing no-network-at-boot convention, used by test.js) or when `ACPTOAPI_LIVE_PROBE=1` is already set (that flag already forces live probing per-request, so firing again here would be redundant).
 
@@ -667,22 +667,22 @@ Default base `http://127.0.0.1:4800` (set by `--port`/`PORT`). All endpoints are
 
 | Endpoint | Returns |
 |----------|---------|
-| `GET /health` | `{ ok: true, backends: [<prefix>, ...] }`  - list of registered ACP backend prefixes (server.js:1010). Liveness probe. |
-| `GET /debug/providers` | Array `[{ name, status: 'ok'|'unreachable', latencyMs }]`  - live 2s reachability probe of each ACP daemon (server.js:1014). |
-| `GET /debug/auto-chain` | `{ links: [{model, fallbackOn}], order: [<provider>...], available: [<model>...] }`  - resolved auto-chain from current env (server.js:1061). |
-| `GET /debug/chains` | `{ defined: [{name, links, defaults}], recent: [<run>...] }`  - config-defined chains (from `~/.acptoapi/config.json` `chains`) + last 50 runs (server.js:1026). |
-| `GET /debug/probe-live[?force=1]` | `{ models: [...], chain: [<model>...], logs: [<str>...] }`  - live-probe working set + probe activity log (server.js:1065). |
-| `GET /debug/config` | Runtime config dump with provider keys REDACTED (server.js:1072). |
-| `POST /debug/translate` | Test a `{from, to, provider, ...params}` triple end-to-end (server.js:1152). |
-| `GET /v1/models` | OpenAI-models shape; mixes `{id, object:'model'}` and `{id:'queue/<name>', object:'queue', queue_links:[...], source}` rows (server.js:981). Dynamic  - driven by env config + ollama `/api/tags`; do NOT hardcode expected models. |
-| `GET /v1/queues` | `{ queues: [{name, links: [<model>...], source}] }`  - all resolved queues across sources (server.js:982). |
-| `GET /v1/chains` | `{ chains: {<name>: [<model>...]}, builtin: [...], runtime: [...] }`  - built-in + runtime named chains (server.js:1031). `POST` body `{name, links:[...]}` registers (201); `DELETE ?name=<n>` removes. |
-| `GET /v1/sampler/status` | `{ status: [{provider, ok, failCount, nextCheckIn, neverProbed?}] }`  - per-provider circuit-breaker state; `nextCheckIn` is ms until the breaker re-opens (server.js:987). The route handler merges `sampler.getStatus()` (providers the sampler has actually observed via `markFailed`/`markOk`) with `getOrder().filter(hasProvider)` from `lib/auto-chain.js`  - any configured (env-keyed) provider absent from the sampler's own Map gets a synthesized `{provider, ok: null, failCount: 0, nextCheckIn: 0, neverProbed: true}` row instead of being silently omitted. This merge happens at the HTTP layer, not inside `lib/sampler.js`, specifically to avoid `sampler.js` importing `auto-chain.js` (circular dependency, same lazy-require pattern auto-chain.js itself uses for `acp-launcher.js`). Once a provider is actually dispatched to, `markFailed`/`markOk` gives it a real Map entry and `neverProbed` no longer appears for it. |
+| `GET /health` | `{ ok: true, backends: [<prefix>, ...] }`  - list of registered ACP backend prefixes (server.js:1301). Liveness probe. |
+| `GET /debug/providers` | Array `[{ name, status: 'ok'|'unreachable', latencyMs }]`  - live 2s reachability probe of each ACP daemon (server.js:1305). |
+| `GET /debug/auto-chain` | `{ links: [{model, fallbackOn}], order: [<provider>...], available: [<model>...] }`  - resolved auto-chain from current env (server.js:1353). |
+| `GET /debug/chains` | `{ defined: [{name, links, defaults}], recent: [<run>...] }`  - config-defined chains (from `~/.acptoapi/config.json` `chains`) + last 50 runs (server.js:1317). |
+| `GET /debug/probe-live[?force=1]` | `{ models: [...], chain: [<model>...], logs: [<str>...] }`  - live-probe working set + probe activity log (server.js:1357). |
+| `GET /debug/config` | Runtime config dump with provider keys REDACTED (server.js:1367). |
+| `POST /debug/translate` | Test a `{from, to, provider, ...params}` triple end-to-end (server.js:1500). |
+| `GET /v1/models` | OpenAI-models shape; mixes `{id, object:'model'}` and `{id:'queue/<name>', object:'queue', queue_links:[...], source}` rows (server.js:1252). Dynamic  - driven by env config + ollama `/api/tags`; do NOT hardcode expected models. |
+| `GET /v1/queues` | `{ queues: [{name, links: [<model>...], source}] }`  - all resolved queues across sources (server.js:1253). |
+| `GET /v1/chains` | `{ chains: {<name>: [<model>...]}, builtin: [...], runtime: [...] }`  - built-in + runtime named chains (server.js:1322). `POST` body `{name, links:[...]}` registers (201); `DELETE ?name=<n>` removes. |
+| `GET /v1/sampler/status` | `{ status: [{provider, ok, failCount, nextCheckIn, neverProbed?}] }`  - per-provider circuit-breaker state; `nextCheckIn` is ms until the breaker re-opens (server.js:1258). The route handler merges `sampler.getStatus()` (providers the sampler has actually observed via `markFailed`/`markOk`) with `getOrder().filter(hasProvider)` from `lib/auto-chain.js`  - any configured (env-keyed) provider absent from the sampler's own Map gets a synthesized `{provider, ok: null, failCount: 0, nextCheckIn: 0, neverProbed: true}` row instead of being silently omitted. This merge happens at the HTTP layer, not inside `lib/sampler.js`, specifically to avoid `sampler.js` importing `auto-chain.js` (circular dependency, same lazy-require pattern auto-chain.js itself uses for `acp-launcher.js`). Once a provider is actually dispatched to, `markFailed`/`markOk` gives it a real Map entry and `neverProbed` no longer appears for it. |
 | `GET /v1/availability` | `{ availability: [{model, ok, successStreak, failStreak, totalSamples, avgLatencyMs, lastSuccessTs, lastFailTs, rank}] }`  - per-model live health tracking (lib/availability.js), sorted by descending `rank`. See "Invisible fallback + live availability tracking" above. |
-| `GET /v1/runs` | `{ runs: [{ts, requestedModel, resolvedLinks, resolvedLinksWithRank, attempted, finalModel, history, state, servedBy, startedAt, finishedAt}] }`  - last 50 chain runs (server.js:1001). `resolvedLinksWithRank: [{model, availabilityRank}]` is captured alongside the flat `resolvedLinks` string array at the moment the chain is built (`lib/chain-machine.js` `snapshotAvailabilityRanks()`, called from both `runChat`/`runStream` right before `registerRun`)  - it snapshots `require('./availability').peek(model).rank` per link so a run's ordering can be correlated against the live-health score that (if `availability.rerank` reordered the chain) produced it, rather than only the post-hoc flat list. Added field, not a replacement  - existing consumers of `resolvedLinks` are unaffected. |
-| `GET /v1/keyring/status` | `{ providers: [{provider, envKey, keys: [{index, key (masked 'prefix...suffix'), ok, failCount, lastFailedAt, lastReason, inBackoff, nextRetryInMs}]}] }`  - per-key health (server.js:988). |
-| `GET /v1/cache/stats`, `POST /v1/cache/clear` | Response-cache stats / clear (server.js:1002). |
-| `GET /v1/pretest/stats`, `POST /v1/pretest/run` | Pretest stats / run-once (server.js:1004). |
+| `GET /v1/runs` | `{ runs: [{ts, requestedModel, resolvedLinks, resolvedLinksWithRank, attempted, finalModel, history, state, servedBy, startedAt, finishedAt}] }`  - last 50 chain runs (server.js:1292). `resolvedLinksWithRank: [{model, availabilityRank}]` is captured alongside the flat `resolvedLinks` string array at the moment the chain is built (`lib/chain-machine.js` `snapshotAvailabilityRanks()`, called from both `runChat`/`runStream` right before `registerRun`)  - it snapshots `require('./availability').peek(model).rank` per link so a run's ordering can be correlated against the live-health score that (if `availability.rerank` reordered the chain) produced it, rather than only the post-hoc flat list. Added field, not a replacement  - existing consumers of `resolvedLinks` are unaffected. |
+| `GET /v1/keyring/status` | `{ providers: [{provider, envKey, keys: [{index, key (masked 'prefix...suffix'), ok, failCount, lastFailedAt, lastReason, inBackoff, nextRetryInMs}]}] }`  - per-key health (server.js:1279). |
+| `GET /v1/cache/stats`, `POST /v1/cache/clear` | Response-cache stats / clear (server.js:1293). |
+| `GET /v1/pretest/stats`, `POST /v1/pretest/run` | Pretest stats / run-once (server.js:1295). |
 | `GET /debug/why?model=<id>` | `{ model, prefix, rest, wouldBeSelectable, blockers: [{layer: 'sampler'|'keyring', detail}], score, scored, availability, matrixNote }`  - unifies sampler backoff + keyring key availability into a single gating verdict for one model id; `score`/`availability` are informational only and never affect `wouldBeSelectable`; matrix scoring is request-scoped and not evaluated here. Requires `ACPTOAPI_API_KEY` like `/debug/config`. |
 
 ### Example curls
