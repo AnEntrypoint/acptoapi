@@ -13,7 +13,10 @@ const escapeJson = (obj) => JSON.stringify(obj)
   .replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026')
   .replace(new RegExp('\\u2028', 'g'), '\\u2028').replace(new RegExp('\\u2029', 'g'), '\\u2029');
 
-const SDK_URL = 'https://unpkg.com/anentrypoint-design@latest/dist/247420.js';
+// raw.githack.com, not unpkg: unpkg's npm-package resolution went stale
+// once anentrypoint-design npm publishing stopped. githack fetches
+// straight from the GitHub @main branch with a 60s max-age instead.
+const SDK_URL = 'https://raw.githack.com/AnEntrypoint/design/main/dist/247420.js';
 
 const clientScript = `
 import { h, applyDiff, installStyles, components as C, initTheme } from 'anentrypoint-design';
@@ -338,9 +341,9 @@ const html = ({ site, nav, home }) => {
   <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E${encodeURIComponent(site.glyph || '◆')}%3C/text%3E%3C/svg%3E" />
   <script type="application/ld+json">${ldJson}</script>
   <script type="importmap">{"imports":{"anentrypoint-design":"${SDK_URL}"}}</script>
-  <link rel="stylesheet" href="https://unpkg.com/anentrypoint-design@latest/dist/247420.css">
-  <link rel="preconnect" href="https://unpkg.com" crossorigin>
-  <link rel="dns-prefetch" href="https://unpkg.com">
+  <link rel="stylesheet" href="https://raw.githack.com/AnEntrypoint/design/main/dist/247420.css">
+  <link rel="preconnect" href="https://raw.githack.com" crossorigin>
+  <link rel="dns-prefetch" href="https://raw.githack.com">
   <style>html,body{margin:0;padding:0}body{background:var(--app-bg,#FBF6EB);color:var(--ink,#1F1B16);font-family:var(--ff-ui,'Nunito',system-ui,sans-serif)}html:not(.ds-ready) body{visibility:hidden}html.ds-ready body{visibility:visible;animation:ds-fade-in .18s ease-out both}@keyframes ds-fade-in{from{opacity:0}to{opacity:1}}</style>
   <noscript><style>html body{visibility:visible !important}</style></noscript>
 </head>
