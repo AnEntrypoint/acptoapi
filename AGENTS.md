@@ -411,16 +411,6 @@ Chain fallback is driven by **xstate v5 FSM** (`lib/chain-machine.js`), not a li
 - **Config-driven chains**: Named chains (e.g., `chain('fallback-to-gemini')`) resolve links via `loadConfig().chains`. `--list-chains` CLI flag and `GET /debug/chains` enumerate defined and recent chains.
 - **Why xstate not floosie**: `floosie` was evaluated and rejected because it is pure ESM (CJS friction) with 5 heavy transitive deps. xstate FSM alone provides deterministic state transitions and event handling without the ESM/CJS wrap/unwrap dance. Unused `flowie` dep was removed in the same commit.
 
-## Test Launcher (nim directory)
-
-Persistent test server at c:\dev\nim (copy of .env, start.bat launcher script):
-
-- **start.bat**: Loads .env (provider keys), sets ACPTOAPI_API_KEY=theultimateflex and PORT=4900, runs `node c:\dev\acptoapi\bin\acptoapi.js`.
-- **Probe pattern** (run from c:\dev\test): Set ANTHROPIC_BASE_URL=http://127.0.0.1:4900, ANTHROPIC_AUTH_TOKEN=theultimateflex, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1, then invoke `claude -p "<prompt>" --output-format stream-json --verbose --include-partial-messages --debug`.
-- **Auto-chain routing**: Bare `claude-*` model names from CLI route through auto-chain (first link defaults to groq/llama-3.3-70b-versatile with current .env keys).
-- **Health check**: `curl http://127.0.0.1:4900/health` returns 200 with backends list. Confirms server is up.
-- **Daemon launch**: Do NOT use `nohup cmd //c start.bat &` from bash  - leaves a dead shell. Instead use Node `spawn({ detached: true, stdio: ['ignore', fileHandle, fileHandle] })` for a real persistent daemon.
-
 ## Model resolution + dynamic defaults (2026-05-12)
 
 `resolveModel(model)` (`lib/sdk.js:21`) resolves a `<provider>/<model>` string to `{provider, model, env, url}`. `splitPrefix` (`lib/sdk.js`) does the prefix/rest split; `resolveQueue` (`lib/queues.js:38`) resolves `queue/<name>` strings; `splitBrandModel` is duplicated independently in `lib/server.js` and `lib/passthrough.js` (NOT a single shared implementation - keep these in sync manually if the split logic changes). Note: `lib/model-resolver.js` is a DIFFERENT module - it probes live models per-provider to pick a strong dynamic default and caches to `~/.acptoapi/models-cache.json`; it is unrelated to the `<provider>/<model>` string-parsing functions above despite the similar name.
