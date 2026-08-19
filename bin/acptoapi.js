@@ -141,6 +141,38 @@ if (args.includes('--missing-free')) {
 } else if (args.includes('--xai-oauth-login')) {
   const xaiOauth = require('../lib/xai-oauth');
   xaiOauth.login().then(() => process.exit(0)).catch(e => { console.error('[acptoapi] xai-oauth login failed:', e.message); process.exit(1); });
+} else if (args.includes('--list-models')) {
+  (async () => {
+    const targetPort = Number(get('--port', process.env.PORT || 4800));
+    const base = `http://127.0.0.1:${targetPort}`;
+    let modelsRes, availRes, samplerRes;
+    try {
+      [modelsRes, availRes, samplerRes] = await Promise.all([
+        fetch(`${base}/v1/models`).then(r => r.json()),
+        fetch(`${base}/v1/availability`).then(r => r.json()).catch(() => ({ availability: [] })),
+        fetch(`${base}/v1/sampler/status`).then(r => r.json()).catch(() => ({ status: [] })),
+      ]);
+    } catch (e) {
+      console.error(`[acptoapi] --list-models requires a running server on :${targetPort} (${e.message}). Start it first, or pass --port to point at a different instance.`);
+      process.exit(1);
+    }
+    const rankByModel = new Map((availRes.availability || []).map(a => [a.model, a.rank]));
+    const samplerByProvider = new Map((samplerRes.status || []).map(s => [s.provider, s]));
+    const rows = (modelsRes.data || [])
+      .filter(m => m.object === 'model')
+      .map(m => {
+        const prefix = m.id.includes('/') ? m.id.split('/')[0] : m.id;
+        const s = samplerByProvider.get(prefix);
+        return { id: m.id, ok: s ? s.ok : null, rank: rankByModel.get(m.id) || 0 };
+      })
+      .sort((a, b) => b.rank - a.rank || a.id.localeCompare(b.id));
+    for (const r of rows) {
+      const status = r.ok === true ? 'OK  ' : r.ok === false ? 'DOWN' : '?   ';
+      console.log(`${status} ${r.rank ? r.rank.toFixed(1).padStart(6) : '     .'} ${r.id}`);
+    }
+    console.log(`\n${rows.length} model(s) from ${base}/v1/models. Also see --list-brands, --list-chains, /v1/queues.`);
+    process.exit(0);
+  })();
 } else if (args.includes('--list-chains')) {
   const { listNamedChains, resolveNamedChain } = require('../lib/chain');
   const names = listNamedChains();

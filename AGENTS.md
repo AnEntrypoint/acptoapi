@@ -732,8 +732,10 @@ curl -s -X POST http://127.0.0.1:4800/debug/translate -H 'content-type: applicat
 - `acptoapi --missing-free`  - list every provider with a genuine free tier (curated `FREE_TIER_INFO` table in `bin/acptoapi.js`, excludes paid-only and local/no-key providers) whose env key is NOT currently set, with its signup URL and a one-line note. Useful for "what free keys should I add" onboarding.
 - `acptoapi --list-brands`  - list OpenAI-compat brand prefixes.
 - `acptoapi --list-chains`  - list config-defined named chains (`<name>: a -> b -> c`).
+- `acptoapi --list-models [--port N]`  - queries a RUNNING server's `/v1/models` + `/v1/availability` + `/v1/sampler/status` and prints every live model ranked by availability score with an `OK`/`DOWN`/`?` health flag  - terminal equivalent of the docs demo UI's model picker. Requires a server already listening on the target port; errors with a clear hint if none is reachable.
+- `acptoapi --xai-oauth-login`  - run the xAI Grok OAuth device-code login flow and persist tokens to `~/.acptoapi/xai-oauth.json`.
 - `acptoapi --update`  - clear npx/bun caches and report the latest npm version (forces fresh `bunx acptoapi@latest`).
 
-There is no separate TUI; the demo UI is served at `GET /` (`/demo`) with static assets (`app.js`, `app-shell.css`).
+There is no separate TUI; the demo UI is served at `GET /` (`/demo`) with static assets (`app.js`, `app-shell.css`) -- as of 2026-08-19 this includes a searchable, provider-grouped model/chain/queue picker (`docs/app.js`) reading `/v1/models`, `/v1/chains`, `/v1/queues`, `/v1/sampler/status`, `/v1/availability`; `--list-models` above is its terminal-side counterpart.
 
 @.gm/next-step.md
