@@ -138,6 +138,9 @@ if (args.includes('--missing-free')) {
   const { listBrands } = require('../lib/openai-brands');
   for (const b of listBrands()) console.log(b);
   process.exit(0);
+} else if (args.includes('--xai-oauth-login')) {
+  const xaiOauth = require('../lib/xai-oauth');
+  xaiOauth.login().then(() => process.exit(0)).catch(e => { console.error('[acptoapi] xai-oauth login failed:', e.message); process.exit(1); });
 } else if (args.includes('--list-chains')) {
   const { listNamedChains, resolveNamedChain } = require('../lib/chain');
   const names = listNamedChains();
