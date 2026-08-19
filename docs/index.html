@@ -37,6 +37,55 @@
     .how li { padding: 4px 0; font-size: 13px; color: var(--panel-text); }
     .how li strong { color: var(--panel-accent); font-weight: 600; }
     .actions { display: flex; gap: 8px; margin: 8px 0 4px 0; flex-wrap: wrap; }
+
+    /* Model/chain/queue picker -- searchable, grouped, live-status combobox
+       replacing a flat <select> so provider selection scales past a handful
+       of hardcoded ids. */
+    .picker { position: relative; }
+    .picker-trigger {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%;
+      font: inherit; font-size: 13px; padding: 7px 10px; background: var(--panel-1); color: var(--panel-text);
+      border: 1px solid var(--panel-3); border-radius: 6px; font-family: var(--ff-mono); cursor: pointer;
+    }
+    .picker-trigger:hover, .picker-trigger:focus { border-color: var(--panel-accent); outline: none; }
+    .picker-trigger .caret { color: var(--panel-text-2); font-size: 10px; }
+    .picker-panel {
+      display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 50;
+      background: var(--panel-1); border: 1px solid var(--panel-3); border-radius: 8px; box-shadow: var(--panel-shadow);
+      max-height: 340px; overflow: hidden; display: none; flex-direction: column;
+    }
+    .picker-panel.open { display: flex; }
+    .picker-modes { display: flex; gap: 4px; padding: 8px 8px 0 8px; }
+    .picker-mode {
+      font-family: var(--ff-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+      padding: 4px 8px; border-radius: 5px; color: var(--panel-text-2); cursor: pointer; background: var(--panel-2);
+    }
+    .picker-mode.active { background: var(--panel-accent); color: var(--panel-accent-fg, #fff); }
+    .picker-search {
+      margin: 8px; padding: 6px 9px; font: inherit; font-size: 12px; font-family: var(--ff-mono);
+      background: var(--panel-0); color: var(--panel-text); border: 1px solid var(--panel-3); border-radius: 6px; outline: none;
+    }
+    .picker-search:focus { border-color: var(--panel-accent); }
+    .picker-list { overflow-y: auto; padding: 0 4px 6px 4px; }
+    .picker-empty { padding: 12px; font-size: 12px; color: var(--panel-text-2); text-align: center; }
+    .picker-group-label {
+      font-family: var(--ff-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--panel-text-2); padding: 6px 8px 2px 8px;
+    }
+    .picker-row {
+      display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 5px; cursor: pointer; font-size: 12px;
+    }
+    .picker-row:hover { background: var(--panel-2); }
+    .picker-row.active { background: var(--panel-2); color: var(--panel-accent); }
+    .picker-row-label { font-family: var(--ff-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .picker-row-sub {
+      margin-left: auto; font-size: 10px; color: var(--panel-text-2); white-space: nowrap; overflow: hidden;
+      text-overflow: ellipsis; max-width: 40%;
+    }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .status-dot.ok { background: #2ecc71; }
+    .status-dot.down { background: #e74c3c; }
+    .status-dot.unknown { background: var(--panel-3); }
   </style>
 </head>
 <body data-screen-label="acptoapi">
@@ -104,7 +153,22 @@
         </div>
         <div class="demo-row">
           <label>model</label>
-          <select id="model"></select>
+          <div class="picker">
+            <button type="button" class="picker-trigger" id="picker-trigger">
+              <span id="picker-trigger-label">loading...</span>
+              <span class="caret">v</span>
+            </button>
+            <input type="hidden" id="model-value" value="" />
+            <div class="picker-panel" id="picker-panel">
+              <div class="picker-modes">
+                <span class="picker-mode active" data-mode="model">model</span>
+                <span class="picker-mode" data-mode="chain">chain</span>
+                <span class="picker-mode" data-mode="queue">queue</span>
+              </div>
+              <input type="text" class="picker-search" id="picker-search" placeholder="filter by id or provider..." />
+              <div class="picker-list" id="picker-list"></div>
+            </div>
+          </div>
         </div>
         <div class="demo-row">
           <label>prompt</label>
@@ -125,33 +189,39 @@
         <pre id="output" class="output">(nothing yet)</pre>
       </div>
 
-      <h2 id="models">model routing</h2>
-      <p>Model IDs use <code>&lt;backend&gt;/&lt;model&gt;</code>. Bare IDs default to <code>kilo</code>.</p>
+      <h2 id="models">model, chain &amp; queue selection</h2>
+      <p>Three ways to pick what serves a request, in increasing order of control:</p>
+      <table class="routes">
+        <thead><tr><th>form</th><th>example</th><th>resolves to</th></tr></thead>
+        <tbody>
+          <tr><td>single model id</td><td><code>groq/llama-3.3-70b-versatile</code></td><td>one provider, one model  - <code>&lt;prefix&gt;/&lt;model&gt;</code>, resolved via <code>resolveModel()</code></td></tr>
+          <tr><td>comma-separated chain</td><td><code>groq/..., mistral/mistral-tiny, kilo/openrouter/free</code></td><td>priority fallback list, tried in order</td></tr>
+          <tr><td>named chain</td><td><code>fast</code> / <code>cheap</code> / <code>smart</code> / <code>reasoning</code> / <code>free</code> / <code>local</code></td><td>curated built-in fallback chains (<code>lib/named-chains.js</code>), or a custom one registered via <code>POST /v1/chains</code></td></tr>
+          <tr><td>named queue</td><td><code>queue/mychain</code></td><td>your own fallback list from <code>~/.acptoapi/queues.json</code></td></tr>
+          <tr><td><code>auto</code></td><td><code>auto</code></td><td>full priority-ordered auto-chain across every configured provider, live-health-ranked</td></tr>
+        </tbody>
+      </table>
+      <p>Provider priority for <code>auto</code>/chains is env-key-gated and overridable with <code>PROVIDER_ORDER=groq,nvidia,anthropic</code>. See <code>GET /v1/models</code>, <code>/v1/queues</code>, <code>/v1/chains</code>, <code>/v1/availability</code>, <code>/v1/sampler/status</code> for live selection state  - the picker above reads all five.</p>
+
+      <h3>brand / provider prefixes (partial)</h3>
       <table class="routes">
         <thead><tr><th>id</th><th>backend</th><th>notes</th></tr></thead>
         <tbody>
-          <tr><td><code>kilo/x-ai/grok-code-fast-1:optimized:free</code></td><td>kilo</td><td>free</td></tr>
-          <tr><td><code>kilo/kilo-auto/free</code></td><td>kilo</td><td>free</td></tr>
-          <tr><td><code>opencode/minimax-m2.5-free</code></td><td>opencode</td><td>free</td></tr>
-          <tr><td><code>claude/sonnet</code></td><td>claude</td><td>Claude Code CLI, OAuth auth</td></tr>
+          <tr><td><code>kilo/x-ai/grok-code-fast-1:optimized:free</code></td><td>kilo</td><td>free, ACP daemon, auto-spawned</td></tr>
+          <tr><td><code>opencode/minimax-m2.5-free</code></td><td>opencode</td><td>free, ACP daemon, auto-spawned</td></tr>
           <tr><td><code>anthropic/claude-sonnet-4-6</code></td><td>anthropic</td><td>direct API, ANTHROPIC_API_KEY</td></tr>
           <tr><td><code>gemini/gemini-2.0-flash</code></td><td>gemini</td><td>GEMINI_API_KEY</td></tr>
-          <tr><td><code>ollama/llama3.2</code></td><td>ollama</td><td>local, OLLAMA_URL</td></tr>
+          <tr><td><code>ollama/llama3.2</code></td><td>ollama</td><td>local, OLLAMA_URL, no key required</td></tr>
           <tr><td><code>bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0</code></td><td>bedrock</td><td>AWS SigV4</td></tr>
-          <tr><td><code>groq/llama-3.3-70b-versatile</code></td><td>groq</td><td>GROQ_API_KEY</td></tr>
+          <tr><td><code>groq/llama-3.3-70b-versatile</code></td><td>groq</td><td>GROQ_API_KEY, multi-key rotation supported</td></tr>
           <tr><td><code>openrouter/auto</code></td><td>openrouter</td><td>OPENROUTER_API_KEY</td></tr>
-          <tr><td><code>together/...</code></td><td>together</td><td>TOGETHER_API_KEY</td></tr>
-          <tr><td><code>deepseek/deepseek-chat</code></td><td>deepseek</td><td>DEEPSEEK_API_KEY</td></tr>
-          <tr><td><code>xai/grok-2-latest</code></td><td>xai</td><td>XAI_API_KEY</td></tr>
-          <tr><td><code>cerebras/llama-3.3-70b</code></td><td>cerebras</td><td>CEREBRAS_API_KEY</td></tr>
-          <tr><td><code>perplexity/...</code></td><td>perplexity</td><td>PERPLEXITY_API_KEY</td></tr>
+          <tr><td><code>xai/grok-2-latest</code></td><td>xai</td><td>XAI_API_KEY (static key)</td></tr>
+          <tr><td><code>xai-oauth/grok-4.6</code></td><td>xai-oauth</td><td>xAI Grok via OAuth device-code login  - <code>acptoapi --xai-oauth-login</code>, no static key</td></tr>
           <tr><td><code>mistral/mistral-large-latest</code></td><td>mistral</td><td>MISTRAL_API_KEY</td></tr>
-          <tr><td><code>fireworks/...</code></td><td>fireworks</td><td>FIREWORKS_API_KEY</td></tr>
           <tr><td><code>openai/gpt-4o</code></td><td>openai</td><td>OPENAI_API_KEY</td></tr>
-          <tr><td><code>claude/haiku</code></td><td>claude</td><td>fast + cheap</td></tr>
-          <tr><td><code>claude/opus</code></td><td>claude</td><td>max capability</td></tr>
         </tbody>
       </table>
+      <p>29 brand/direct providers total; run <code>acptoapi --probe</code> for env-key presence per provider, or <code>acptoapi --list-brands</code> for the full prefix list.</p>
 
       <h2 id="endpoints">endpoints</h2>
       <table class="routes">
