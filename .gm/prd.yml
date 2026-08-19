@@ -1,0 +1,6 @@
+- SESSION_ID: sess-1787160071856
+  id: triage-orphaned-root-scripts
+  title: Triage orphaned tracked root scripts install-acp-agents.ps1 and validate-providers.js
+  body: 'Both tracked, zero inbound references from docs/package.json/other source. install-acp-agents.ps1 predates the installless bun x/npx ACP spawn approach documented in AGENTS.md ACP Daemons section (daemons now auto-spawn, no manual install script needed). validate-providers.js likely predates or duplicates test.js coverage. Precondition: confirm neither is referenced in package.json scripts or CI workflows (.github/). Invariant: do not remove if referenced by CI. Postcondition: removed via git rm if confirmed orphaned, or left in place with a one-line note if CI-referenced.'
+  witness: pending .github/ workflow + package.json scripts check
+  status: pending

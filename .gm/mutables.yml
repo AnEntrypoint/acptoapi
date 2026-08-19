@@ -1,0 +1,24 @@
+- SESSION_ID: sess-1787160071856
+  id: mut-untracked-cruft-precond
+  obligation_kind: precondition
+  body: All 10 root-level cruft files (.acptoapi-run.log, acptoapi-live.log, acptoapi-run.log, acptoapi-run2.log, acptoapi-run3.log, nul.err, server-4900.err, sh.exe.stackdump, rs-learn.db, .codeinsight, .codeinsight.digest) must be confirmed untracked before deletion.
+  status: witnessed
+  witness_evidence: git ls-files | grep -E pattern for all 10 cruft names returned zero tracked hits (bash dispatch 1787160071856-3 window).
+- SESSION_ID: sess-1787160071856
+  id: mut-historical-docs-precond
+  obligation_kind: precondition
+  body: docs/historical/*.md must have zero inbound references from README.md/AGENTS.md/package.json before removal.
+  status: witnessed
+  witness_evidence: grep -rl docs/historical --include=*.md . returned zero hits (confirmed twice).
+- SESSION_ID: sess-1787160071856
+  id: mut-orphan-scripts-precond
+  obligation_kind: precondition
+  body: install-acp-agents.ps1 and validate-providers.js must not be referenced in package.json scripts or .github/workflows/*.yml before removal.
+  status: witnessed
+  witness_evidence: grep -n install-acp-agents|validate-providers package.json .github/workflows/*.yml returned zero hits.
+- SESSION_ID: sess-1787160071856
+  id: mut-corrupted-turnstate-precond
+  obligation_kind: precondition
+  body: .gm/turn-state.json.corrupted-* must already be gitignored (confirms local-disk-only removal, no git-tracked concern).
+  status: witnessed
+  witness_evidence: '.gitignore line 34: .gm/turn-state.json.corrupted-* already present.'
