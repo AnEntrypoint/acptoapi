@@ -1,4 +1,6 @@
 node_modules
+.env
+.env.*
 .kilo/
 start-test-server.bat
 traffic-proxy*.js
@@ -12,7 +14,11 @@ traffic-proxy*.js
 
 .server.log
 .server.err
+acptoapi-*.log
+*.err
+nul.err
 .codeinsight
+.codeinsight.digest
 .plugkit-browser-profile/
 .plugkit-browser-profile-*/
 .plugkit-agent-worktree/

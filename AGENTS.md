@@ -366,6 +366,20 @@ Mapping raw request bodies through `translate()` requires converting to canonica
 - **API coverage**: Applies to chat and token counting (`POST /v1/messages/count_tokens`  - heuristic: length / 4). `POST /v1/embeddings` is NOT brand-routed  - it is a hard `410 {code:'embeddings_not_here'}` (`handleEmbeddingsGone`, server.js:493) since embeddings moved to rs-learn's native embedder; there is no `handleEmbeddings` function in this codebase.
 - **Function URLs**: `getBrand(prefix)` resolves function-valued URLs at call time (e.g., Cloudflare dynamic account URL)
 
+## xAI Grok OAuth device-code provider (lib/xai-oauth.js, 2026-08-19)
+
+Ported from `NousResearch/hermes-agent` (`hermes_cli/auth.py`) -- the public `xai-grok-oauth.md` guide only documents the CLI-level UX (commands, config keys, `~/.hermes/auth.json`), not the actual OAuth wire protocol; the real endpoints/client_id/scope were extracted from Hermes's source (`hermes_cli/auth.py:150-154`, `:8019-8188`) and live-witnessed against the real xAI OAuth server before this port was trusted.
+
+- **Provider id**: `xai-oauth` (distinct from the existing `xai` brand, which is a plain `XAI_API_KEY` bearer -- `lib/openai-brands.js` registers both; `xai-oauth`'s `envKey` is `null` since credentials never come from an env var).
+- **Flow**: RFC 8628 device-authorization grant. Discovery `GET https://auth.x.ai/.well-known/openid-configuration` -> `{authorization_endpoint, token_endpoint}` (live-witnessed: `token_endpoint=https://auth.x.ai/oauth2/token`). Device code `POST https://auth.x.ai/oauth2/device/code` with `client_id=b1a00492-073a-47ea-816f-4c329264a828`, `scope=openid profile email offline_access grok-cli:access api:access` -> `{device_code, user_code, verification_uri, verification_uri_complete, expires_in, interval}` (live-witnessed working). User approves at `verification_uri_complete`; poll `token_endpoint` with `grant_type=urn:ietf:params:oauth:grant-type:device_code` until `access_token`+`refresh_token` arrive (`authorization_pending`/`slow_down` are expected interim errors, handled with backoff up to 30s).
+- **Token store**: `~/.acptoapi/xai-oauth.json` (override `ACPTOAPI_XAI_OAUTH_PATH`), atomic tmp+rename write. Distinct from Hermes's own `~/.hermes/auth.json` -- acptoapi does not read or write Hermes's store.
+- **Refresh**: proactive when the JWT `exp` is within `XAI_ACCESS_TOKEN_REFRESH_SKEW_SECONDS` (3600s) of now, via `grant_type=refresh_token`; reactive retry-once on a live 401 from `api.x.ai`. A 403 from the token endpoint is a tier/entitlement gate, not a bad token -- surfaced as a distinct error pointing at `XAI_API_KEY`/the plain `xai` brand instead of prompting re-login.
+- **Origin pinning**: both the discovered OIDC endpoints and any `XAI_BASE_URL` override are validated to be `https://` on `x.ai` or `*.x.ai` before use (mirrors Hermes's own `_xai_validate_oauth_endpoint`/`_xai_validate_inference_base_url`) -- a cached/overridden endpoint pointing off-origin would otherwise leak the bearer to a third party on every refresh.
+- **HTTP wiring**: `lib/server.js`'s `handleBrandChat` special-cases `brandName === 'xai-oauth'` to `handleXaiOauthChat`, which pulls `{bearer, baseUrl}` from `xai-oauth.getCredentials()` instead of going through `keyring` -- the normal per-key rotation/backoff machinery does not apply here (there is exactly one OAuth identity, not a pool of static keys).
+- **Exclusion from auto-chain/brand-catalog**: `xai-oauth` is not in `PROVIDER_ORDER`/`BUILTIN_KEYS`/`DEFAULT_MODELS`, so it is never auto-selected by `buildAutoChain` -- reachable only via an explicit `model: 'xai-oauth/<model>'` request, same opt-in posture as the ACP daemons. `lib/brand-catalog.js`'s `refreshAll` explicitly requires a truthy `envKey` before probing a brand's models endpoint (a `null`-envKey brand has no keyring credential to probe with) -- this also protects any future `envKey: null` brand from a wasted unauthenticated probe.
+- **CLI**: `node bin/acptoapi.js --xai-oauth-login` runs the interactive device-code flow and prints the verification URL + code.
+- **Usage**: `model: 'xai-oauth/grok-4.6'` (or any model id `api.x.ai/v1/chat/completions` accepts) once logged in.
+
 ## Testing: No Mocks, Only Real Backends
 
 acptoapi forbids mocks anywhere in tests. This includes:
@@ -396,16 +410,6 @@ Chain fallback is driven by **xstate v5 FSM** (`lib/chain-machine.js`), not a li
 - **SDK integration**: `chat`/`stream` methods in `lib/sdk.js` early-branch on `model: 'chain/<name>'` and delegate to `lib/chain.js`. Old `streamChain`/`chatChain` now wrap the chain builder.
 - **Config-driven chains**: Named chains (e.g., `chain('fallback-to-gemini')`) resolve links via `loadConfig().chains`. `--list-chains` CLI flag and `GET /debug/chains` enumerate defined and recent chains.
 - **Why xstate not floosie**: `floosie` was evaluated and rejected because it is pure ESM (CJS friction) with 5 heavy transitive deps. xstate FSM alone provides deterministic state transitions and event handling without the ESM/CJS wrap/unwrap dance. Unused `flowie` dep was removed in the same commit.
-
-## Test Launcher (nim directory)
-
-Persistent test server at c:\dev\nim (copy of .env, start.bat launcher script):
-
-- **start.bat**: Loads .env (provider keys), sets ACPTOAPI_API_KEY=theultimateflex and PORT=4900, runs `node c:\dev\acptoapi\bin\acptoapi.js`.
-- **Probe pattern** (run from c:\dev\test): Set ANTHROPIC_BASE_URL=http://127.0.0.1:4900, ANTHROPIC_AUTH_TOKEN=theultimateflex, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1, then invoke `claude -p "<prompt>" --output-format stream-json --verbose --include-partial-messages --debug`.
-- **Auto-chain routing**: Bare `claude-*` model names from CLI route through auto-chain (first link defaults to groq/llama-3.3-70b-versatile with current .env keys).
-- **Health check**: `curl http://127.0.0.1:4900/health` returns 200 with backends list. Confirms server is up.
-- **Daemon launch**: Do NOT use `nohup cmd //c start.bat &` from bash  - leaves a dead shell. Instead use Node `spawn({ detached: true, stdio: ['ignore', fileHandle, fileHandle] })` for a real persistent daemon.
 
 ## Model resolution + dynamic defaults (2026-05-12)
 
@@ -597,11 +601,7 @@ The exported singleton (`_singleton = createAvailabilityTracker({ persist: true 
 
 ## Fixed: per-request refreshAll serialization + resolvedLinksWithRank gap on /v1/messages (2026-07-02)
 
-Live `claude -p` testing against a fresh `acptoapi` boot (nim/start.bat setup, `/v1/messages` via Claude Code's Anthropic-SDK path) witnessed a 53s ttft on the very first request. Root cause: `lib/model-resolver.js` `refreshAll(providers)`, called unconditionally on every `/v1/messages` request via `buildAutoChainLive` (`lib/auto-chain.js:373`), was a sequential `for..of` + `await` loop with `{force: true}`  - each of N configured providers could serially block up to the 8s `lib/model-prober.js` network-probe timeout AND `force:true` bypassed `getDefaultModel`'s 24h TTL cache on every single call, not just cold boot. Fixed by switching to `Promise.all` and dropping `force:true` (lets the existing cache do its job). Live-witnessed improvement: cold request 53s -> 12s, warm request -> 2s.
-
-Separately, `GET /v1/runs`'s `resolvedLinksWithRank` field (per-link `{model, availabilityRank}` snapshot, see "Invisible fallback + live availability tracking" above) was always `[]` for every run originating from `handleAnthropicMessages` (`/v1/messages`  - the endpoint Claude Code's SDK actually calls), because none of its 4 `recordRunDirect(...)` call sites passed the field; only `lib/chain-machine.js`'s `runChat`/`runStream` (the `/v1/chat/completions` FSM path) called `snapshotAvailabilityRanks`. Fixed by calling `snapshotAvailabilityRanks(queueLinks)` once in `handleAnthropicMessages` and threading it into all 4 call sites. `snapshotAvailabilityRanks` is now exported from `lib/chain-machine.js` for this purpose.
-
-Non-findings from the same live-witness session, recorded so they aren't re-investigated: (a) `sampler.markFailed` correctly keys on the real per-brand prefix (`prefixOf(link.model)`, e.g. `groq`/`sambanova`)  - the `provider=brand` label seen in `handleAnthropicMessages`'s console logs is a cosmetic `route.provider` tag only, not what the sampler keys on; (b) `lib/stream-guard.js`'s `chunkTimeoutMs` is a per-chunk inter-arrival gap timeout, not a total-stream-duration cap  - a slow-but-steadily-trickling stream (witnessed: 185s nvidia response) is expected to complete rather than being killed, and its slowness organically feeds into `lib/availability.js`'s latency-based demotion for future chain ordering; (c) all 10 ACP daemon spawn failures on a fresh Windows dev machine are external package-availability issues (`bun x`/`npx` third-party CLIs not installed/published under expected names), not an `acptoapi` code defect  - `lib/acp-launcher.js` already degrades gracefully.
+`refreshAll` in `lib/model-resolver.js` was sequential+`force:true` on every `/v1/messages` request (53s cold ttft); fixed via `Promise.all` + dropping `force:true` (cold 53s->12s, warm ->2s). `handleAnthropicMessages` was also missing the `snapshotAvailabilityRanks` call that `runChat`/`runStream` already had, so `GET /v1/runs`'s `resolvedLinksWithRank` was always `[]` for `/v1/messages`-originated runs; now calls it and threads through all 4 `recordRunDirect` sites. Full postmortem detail (non-findings on sampler prefix keying, stream-guard per-chunk timeout semantics, ACP spawn failures being external) drained to rs-learn (recall "acptoapi-refreshall-serialization-fix-2026-07-02").
 
 ## Configuration  - ~/.acptoapi directory + env vars
 
@@ -718,8 +718,10 @@ curl -s -X POST http://127.0.0.1:4800/debug/translate -H 'content-type: applicat
 - `acptoapi --missing-free`  - list every provider with a genuine free tier (curated `FREE_TIER_INFO` table in `bin/acptoapi.js`, excludes paid-only and local/no-key providers) whose env key is NOT currently set, with its signup URL and a one-line note. Useful for "what free keys should I add" onboarding.
 - `acptoapi --list-brands`  - list OpenAI-compat brand prefixes.
 - `acptoapi --list-chains`  - list config-defined named chains (`<name>: a -> b -> c`).
+- `acptoapi --list-models [--port N]`  - queries a RUNNING server's `/v1/models` + `/v1/availability` + `/v1/sampler/status` and prints every live model ranked by availability score with an `OK`/`DOWN`/`?` health flag  - terminal equivalent of the docs demo UI's model picker. Requires a server already listening on the target port; errors with a clear hint if none is reachable.
+- `acptoapi --xai-oauth-login`  - run the xAI Grok OAuth device-code login flow and persist tokens to `~/.acptoapi/xai-oauth.json`.
 - `acptoapi --update`  - clear npx/bun caches and report the latest npm version (forces fresh `bunx acptoapi@latest`).
 
-There is no separate TUI; the demo UI is served at `GET /` (`/demo`) with static assets (`app.js`, `app-shell.css`).
+There is no separate TUI; the demo UI is served at `GET /` (`/demo`) with static assets (`app.js`, `app-shell.css`) -- as of 2026-08-19 this includes a searchable, provider-grouped model/chain/queue picker (`docs/app.js`) reading `/v1/models`, `/v1/chains`, `/v1/queues`, `/v1/sampler/status`, `/v1/availability`; `--list-models` above is its terminal-side counterpart.
 
 @.gm/next-step.md
