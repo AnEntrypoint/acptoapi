@@ -1,0 +1,315 @@
+function loadDotEnvFilesForLibraryConsumers() {
+  try {
+    const path = require('path');
+    const os = require('os');
+    const fs = require('fs');
+    const packageDotEnvPath = path.join(__dirname, '.env');
+    const userHomeDotEnvPath = path.join(os.homedir(), '.acptoapi', '.env');
+    if (fs.existsSync(packageDotEnvPath)) require('dotenv').config({ path: packageDotEnvPath });
+    if (fs.existsSync(userHomeDotEnvPath)) require('dotenv').config({ path: userHomeDotEnvPath });
+  } catch {}
+}
+loadDotEnvFilesForLibraryConsumers();
+
+const { getClient } = require('./lib/client');
+const { GeminiError, withRetry } = require('./lib/errors');
+const { convertMessages, convertTools, cleanSchema, extractModelId, buildConfig } = require('./lib/convert');
+const { guardStream } = require('./lib/stream-guard');
+
+const MAX_TOOL_ITERATIONS = Number(process.env.ACPTOAPI_MAX_TOOL_ITERATIONS) || 50;
+
+function streamGemini({ model, system, messages, tools, onStepFinish, apiKey,
+  temperature, maxOutputTokens, topP, topK, safetySettings, responseModalities }) {
+  return {
+    fullStream: createFullStream({ model, system, messages, tools, onStepFinish, apiKey, temperature, maxOutputTokens, topP, topK, safetySettings, responseModalities }),
+    warnings: Promise.resolve([])
+  };
+}
+
+async function* createFullStream({ model, system, messages, tools, onStepFinish, apiKey, temperature, maxOutputTokens, topP, topK, safetySettings, responseModalities, streamGuard }) {
+  const client = getClient(apiKey);
+  const modelId = extractModelId(model);
+  let contents = convertMessages(messages);
+  const { config } = buildConfig({ system, tools, temperature, maxOutputTokens, topP, topK, safetySettings, responseModalities });
+  let iterations = 0;
+  while (true) {
+    if (++iterations > MAX_TOOL_ITERATIONS) {
+      yield { type: 'error', error: new GeminiError(`tool-call loop exceeded MAX_TOOL_ITERATIONS (${MAX_TOOL_ITERATIONS})`, { retryable: false }) };
+      yield { type: 'finish-step', finishReason: 'error' };
+      if (onStepFinish) await onStepFinish();
+      return;
+    }
+    yield { type: 'start-step' };
+    try {
+      const stream = await withRetry(() => client.models.generateContentStream({ model: modelId, contents, config }));
+      const allParts = [];
+      for await (const chunk of guardStream(stream, streamGuard)) {
+        for (const candidate of (chunk.candidates || [])) {
+          for (const part of (candidate.content?.parts || [])) {
+            allParts.push(part);
+            if (part.text && !part.thought) yield { type: 'text-delta', textDelta: part.text };
+          }
+        }
+      }
+      const fcParts = allParts.filter(p => p.functionCall);
+      if (fcParts.length === 0) {
+        yield { type: 'finish-step', finishReason: 'stop' };
+        if (onStepFinish) await onStepFinish();
+        return;
+      }
+      const toolResultParts = [];
+      for (const part of fcParts) {
+        const name = part.functionCall.name;
+        const args = part.functionCall.args || {};
+        const toolId = 'toolu_' + Math.random().toString(36).slice(2, 10);
+        yield { type: 'tool-call', toolCallId: toolId, toolName: name, args };
+        const toolDef = tools?.[name];
+        let result = toolDef ? null : { error: true, message: 'Tool not found: ' + name };
+        if (toolDef?.execute) {
+          try { result = await toolDef.execute(args, { toolCallId: toolId }); }
+          catch (e) { result = { error: true, message: e.message }; }
+        }
+        yield { type: 'tool-result', toolCallId: toolId, toolName: name, args, result };
+        toolResultParts.push({ functionResponse: { name, response: typeof result === 'string' ? { output: result } : (result || {}) } });
+      }
+      yield { type: 'finish-step', finishReason: 'tool-calls' };
+      if (onStepFinish) await onStepFinish();
+      contents.push({ role: 'model', parts: allParts });
+      contents.push({ role: 'user', parts: toolResultParts });
+    } catch (err) {
+      yield { type: 'error', error: err };
+      yield { type: 'finish-step', finishReason: 'error' };
+      if (onStepFinish) await onStepFinish();
+      throw err;
+    }
+  }
+}
+
+async function generateGemini({ model, system, messages, tools, apiKey, temperature, maxOutputTokens, topP, topK, safetySettings, responseModalities }) {
+  const client = getClient(apiKey);
+  const modelId = extractModelId(model);
+  let contents = convertMessages(messages);
+  const { config } = buildConfig({ system, tools, temperature, maxOutputTokens, topP, topK, safetySettings, responseModalities });
+  let iterations = 0;
+  while (true) {
+    if (++iterations > MAX_TOOL_ITERATIONS) throw new GeminiError(`tool-call loop exceeded MAX_TOOL_ITERATIONS (${MAX_TOOL_ITERATIONS})`, { retryable: false });
+    const response = await withRetry(() => client.models.generateContent({ model: modelId, contents, config }));
+    const candidate = response.candidates?.[0];
+    if (!candidate) throw new GeminiError('No candidates returned', { retryable: false });
+    const allParts = candidate.content?.parts || [];
+    const fcParts = allParts.filter(p => p.functionCall);
+    if (fcParts.length === 0) {
+      const text = allParts.filter(p => p.text && !p.thought).map(p => p.text).join('');
+      return { text, parts: allParts, response };
+    }
+    const toolResultParts = [];
+    for (const part of fcParts) {
+      const name = part.functionCall.name;
+      const args = part.functionCall.args || {};
+      const toolDef = tools?.[name];
+      let result = toolDef ? null : { error: true, message: 'Tool not found: ' + name };
+      if (toolDef?.execute) {
+        try { result = await toolDef.execute(args); }
+        catch (e) { result = { error: true, message: e.message }; }
+      }
+      toolResultParts.push({ functionResponse: { name, response: typeof result === 'string' ? { output: result } : (result || {}) } });
+    }
+    contents.push({ role: 'model', parts: allParts });
+    contents.push({ role: 'user', parts: toolResultParts });
+  }
+}
+
+const { streamRouter, generateRouter, createRouter } = require('./lib/router-stream');
+const { BridgeError, AuthError, RateLimitError, TimeoutError, ContextWindowError, ContentPolicyError, ProviderError, classifyError, redactKeys } = require('./lib/errors');
+const { streamACP, generateACP } = require('./lib/providers/acp');
+const { translate, translateSync, buffer, stream: translateStream } = require('./lib/translate');
+const { getFormat, FORMATS } = require('./lib/formats/index');
+const { getProvider, PROVIDERS } = require('./lib/providers/index');
+const { createStreamActor } = require('./lib/machine');
+const { Anthropic } = require('./lib/sdk/anthropic');
+const { OpenAI } = require('./lib/sdk/openai');
+const { createAnthropicServer } = require('./lib/server/anthropic');
+const { createOpenAIServer } = require('./lib/server/openai');
+const { resolveModel, chat: _chat, chain, fallback, chatChain: _chatChain, streamChain, resolveNamedChain, listNamedChains, getRunHistory, listAllModelsAndQueues, parseCommaList, splitPrefix } = require('./lib/sdk');
+const { resolveQueue, listAllQueues } = require('./lib/queues');
+const { loadMatrix, matrixScore, clearMatrixCache } = require('./lib/matrix');
+const sdkStream = require('./lib/sdk').stream;
+const { buildAutoChain, DEFAULT_ORDER, DEFAULT_MODELS, hasProvider, getOrder } = require('./lib/auto-chain');
+const { getModelScore, sortByBenchmark } = require('./lib/swe-bench-scores');
+const { createCircuitBreaker } = require('./lib/circuit-breaker');
+const sampler = require('./lib/sampler');
+const { PROVIDER_KEYS, PROVIDER_DEFAULTS } = require('./lib/provider-maps');
+const modelProber = require('./lib/model-prober');
+const readiness = require('./lib/readiness');
+const availability = require('./lib/availability');
+
+function startOnceOnFirstRealCall(disableEnvVar, startFn) {
+  let started = false;
+  return function ensureStarted() {
+    if (started) return;
+    started = true;
+    if (process.env[disableEnvVar] === '1') return;
+    try { startFn(); } catch {}
+  };
+}
+
+const ensureReadinessStarted = startOnceOnFirstRealCall('ACPTOAPI_READINESS_DISABLE', () => readiness.start());
+const ensureExtraProvidersStarted = startOnceOnFirstRealCall('ACPTOAPI_EXTRA_PROVIDERS_DISABLE', () => require('./lib/extra-providers').start());
+
+// Live-witnessed real race: extra-providers.js's start() (above) is
+// fire-and-forget -- its first registration pass runs in the background,
+// unawaited. A chain built (buildAutoChain -> extra-0/* candidates, drawn
+// from PERSISTED availability history that outlives any single process) on
+// this same first real call can reference an extra-N/* model before that
+// prefix has finished registering in THIS process's own memory, at which
+// point extra-providers.js's isMultiModelPrefix(prefix) wrongly reports
+// false (nothing registered yet) -- so chain-machine.js's aggregator-vs-
+// single-backend sampler-backoff exemption isn't active yet, and one
+// early failure on that aggregator cascades prefix-wide sampler backoff
+// across every other sibling model, exactly the multi-model-aggregator
+// bug this exemption exists to prevent, but only during this narrow
+// cold-start window. Directly reproduced live via casey's own selftest
+// harness: a fresh process's first real turn hit this exact race and
+// degraded a turn that would otherwise have succeeded.
+//
+// Fixed by blocking the FIRST chat()/chatChain() call (only) on the
+// initial registration pass completing, with a bounded timeout so a slow
+// or misconfigured extra-providers.txt can never hang a real turn
+// indefinitely -- once initial registration is done (or the timeout
+// elapses), every later call proceeds exactly as before (extra-providers'
+// own start() periodic task keeps re-probing in the background).
+let extraProvidersReadyPromise = null;
+function ensureExtraProvidersReady() {
+  ensureExtraProvidersStarted();
+  if (process.env.ACPTOAPI_EXTRA_PROVIDERS_DISABLE === '1') return Promise.resolve();
+  if (!extraProvidersReadyPromise) {
+    const boundMs = Number(process.env.ACPTOAPI_EXTRA_PROVIDERS_BOOT_WAIT_MS) || 15000;
+    const ep = require('./lib/extra-providers');
+    extraProvidersReadyPromise = Promise.race([
+      ep.loadAndRegisterAsync(),
+      new Promise(resolve => setTimeout(resolve, boundMs)),
+    ]).catch(() => {});
+  }
+  return extraProvidersReadyPromise;
+}
+
+function registerChainModelsForReadiness(modelsOrChain) {
+  try {
+    if (Array.isArray(modelsOrChain)) {
+      readiness.registerCandidates(modelsOrChain.map(m => typeof m === 'string' ? m : (m && m.model)).filter(Boolean));
+    } else if (typeof modelsOrChain === 'string') {
+      readiness.registerCandidates(modelsOrChain.includes(',') ? modelsOrChain.split(',').map(s => s.trim()).filter(Boolean) : [modelsOrChain]);
+    }
+  } catch {}
+}
+
+async function chat(opts) {
+  ensureReadinessStarted();
+  // Only actually wait when the request can resolve to an extra-N/* model
+  // (a literal 'auto' or comma-chain build, or already an explicit
+  // extra-N/... model) -- a request pinned to a real static brand never
+  // touches extra-providers at all, so it must never pay this wait.
+  const model = opts && opts.model;
+  const touchesExtraProviders = model === 'auto' || (typeof model === 'string' && (model.includes(',') || /^extra-\d+\//.test(model)));
+  if (touchesExtraProviders) await ensureExtraProvidersReady();
+  else ensureExtraProvidersStarted();
+  if (model) registerChainModelsForReadiness(model);
+  return _chat(opts);
+}
+
+async function chatChain(models, opts) {
+  ensureReadinessStarted();
+  await ensureExtraProvidersReady();
+  registerChainModelsForReadiness(models);
+  return _chatChain(models, opts);
+}
+
+module.exports = { streamGemini, createFullStream, generateGemini, streamRouter, generateRouter, createRouter, convertMessages, convertTools, cleanSchema, GeminiError, BridgeError, AuthError, RateLimitError, TimeoutError, ContextWindowError, ContentPolicyError, ProviderError, classifyError, redactKeys, streamACP, generateACP, translate, translateSync, buffer, translateStream, getFormat, FORMATS, getProvider, PROVIDERS, createStreamActor, Anthropic, OpenAI, createAnthropicServer, createOpenAIServer, resolveModel, chat, chain, fallback, chatChain, streamChain, resolveNamedChain, listNamedChains, getRunHistory, stream: sdkStream, sdkStream, buildAutoChain, DEFAULT_ORDER, DEFAULT_MODELS, hasProvider, getOrder, createCircuitBreaker, createSampler: sampler.createSampler, isAvailable: sampler.isAvailable, markFailed: sampler.markFailed, markOk: sampler.markOk, resetAvailability: sampler.resetAvailability, getStatus: sampler.getStatus, peekStatus: sampler.peekStatus, probe: sampler.probe, startSampler: sampler.startSampler, stopSampler: sampler.stopSampler, PROVIDER_KEYS, PROVIDER_DEFAULTS, probeModels: modelProber.probeModels, getCachedModels: modelProber.getCachedModels, createModelProber: modelProber.createModelProber, listAllModelsAndQueues, parseCommaList, splitPrefix, resolveQueue, listAllQueues, loadMatrix, matrixScore, clearMatrixCache, getModelScore, sortByBenchmark, runClaude, startReadiness: readiness.start, stopReadiness: readiness.stop, peekReadiness: readiness.peek, runReadinessOnce: readiness.runOnce, registerReadinessCandidates: readiness.registerCandidates, recordModelSuccess: availability.recordSuccess, recordModelFailure: availability.recordFailure, peekModelAvailability: availability.peek };
+
+async function runClaude(opts = {}) {
+  const { spawn } = require('child_process');
+  const http = require('http');
+  const { execSync } = require('child_process');
+  const port = opts.port || 4800;
+  const baseUrl = `http://127.0.0.1:${port}`;
+  const apiKey = process.env.ACPTOAPI_API_KEY || 'theultimateflex';
+
+  const isServerUp = await new Promise((resolve) => {
+    const req = http.get(`${baseUrl}/health`, { timeout: 2000 }, (res) => {
+      let body = '';
+      res.on('data', (d) => body += d);
+      res.on('end', () => resolve(res.statusCode === 200));
+    });
+    req.on('error', () => resolve(false));
+    req.on('timeout', () => { req.destroy(); resolve(false); });
+  });
+
+  let serverProc = null;
+  if (!isServerUp) {
+    console.log(`[acptoapi] starting server on port ${port}...`);
+    serverProc = spawn(process.execPath, [require('path').join(__dirname, 'bin', 'acptoapi.js'), '--port', String(port)], {
+      stdio: 'ignore',
+      detached: true,
+      env: { ...process.env, PORT: String(port) },
+    });
+    serverProc.unref();
+    await new Promise((resolve) => {
+      const check = (attempts) => {
+        if (attempts <= 0) { resolve(); return; }
+        const req = http.get(`${baseUrl}/health`, { timeout: 1000 }, (res) => {
+          let body = '';
+          res.on('data', (d) => body += d);
+          res.on('end', () => {
+            if (res.statusCode === 200) resolve();
+            else setTimeout(() => check(attempts - 1), 500);
+          });
+        });
+        req.on('error', () => setTimeout(() => check(attempts - 1), 500));
+        req.on('timeout', () => { req.destroy(); setTimeout(() => check(attempts - 1), 500); });
+      };
+      check(20);
+    });
+    console.log(`[acptoapi] server ready at ${baseUrl}`);
+  } else {
+    console.log(`[acptoapi] server already running at ${baseUrl}`);
+  }
+
+  let claudeBin = 'claude';
+  try {
+    if (process.platform === 'win32') {
+      execSync(`where claude`, { stdio: 'pipe', windowsHide: true, timeout: 500 });
+    } else {
+      execSync(`which claude`, { stdio: 'pipe', timeout: 500 });
+    }
+  } catch {
+    throw new Error('claude CLI not found on PATH. Install: npm install -g @anthropic-ai/claude-code');
+  }
+
+  const claudeArgs = opts.args || [];
+  const claudeEnv = {
+    ...process.env,
+    ANTHROPIC_BASE_URL: baseUrl,
+    ANTHROPIC_AUTH_TOKEN: apiKey,
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+  };
+
+  console.log(`[acptoapi] launching claude -> ${baseUrl}`);
+  const claude = spawn(claudeBin, claudeArgs, {
+    stdio: 'inherit',
+    env: claudeEnv,
+  });
+
+  claude.on('error', (e) => {
+    console.error(`[acptoapi] claude spawn error: ${e.message}`);
+    process.exit(1);
+  });
+
+  claude.on('close', (code) => {
+    if (serverProc) {
+      try { process.kill(-serverProc.pid); } catch {}
+    }
+    process.exit(code || 0);
+  });
+
+  return claude;
+}

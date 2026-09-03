@@ -1,0 +1,41 @@
+# gm / agent tooling internal state (was shipping 197 files / ~3MB to every
+# `npx acptoapi` consumer). None of it is needed at runtime.
+.gm/
+.gm-continue-count
+.agentplug/
+.agentplug-kv/
+.claude/
+.codeinsight
+.codeinsight.digest
+.plugkit-browser-profile/
+.kilo/
+rs-learn.db
+
+# CI / repo-dev config not needed inside the published package
+.github/
+.env
+.env.example
+flatspace.config.mjs
+install-acp-agents.ps1
+start-test-server.bat
+
+# Session/dev scratch, logs, crash dumps
+scratchpad/
+*.log
+*.err
+*.stackdump
+nul.err
+
+# Dev-only docs and reports (README + AGENTS.md are kept)
+CLAUDE.md
+COMPLETION_REPORT.md
+DEBUG_GUIDE.md
+SPAWN_FIXES.md
+SYSTEM_SETUP.md
+
+# Demo web UI + misc dev scripts not part of the SDK/CLI runtime
+site/
+traffic-proxy.js
+traffic-proxy2.js
+validate-providers.js
+test.js
