@@ -22,3 +22,9 @@
   body: .gm/turn-state.json.corrupted-* must already be gitignored (confirms local-disk-only removal, no git-tracked concern).
   status: witnessed
   witness_evidence: '.gitignore line 34: .gm/turn-state.json.corrupted-* already present.'
+- SESSION_ID: acptoapi-okeydokey-keymgmt-2026-09-05
+  id: mut-okeydokey-dep-pin
+  obligation_kind: coordination
+  body: 'package.json pins okeydokey to github:AnEntrypoint/okeydokey#claude/key-mgmt-okeydokey-migration-3jwomz so this branch is installable and verifiable before okeydokey''s branch merges. Once okeydokey''s branch lands on its default branch, drop the #ref so the dependency tracks the default branch again - a branch ref left in place after a merge pins forever to a stale branch.'
+  status: open
+  witness_evidence: 'npm install resolved the pinned branch and the adapter loaded from it; a clean install pulled 53 packages with @libsql/client, @anentrypoint/design and floosie all absent, confirming okeydokey''s optional peers do not reach this repo.'
