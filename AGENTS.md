@@ -127,7 +127,19 @@ Maps to:
 
 When translating between formats, preserve reasoning blocks if both source and target support them. Check format docs for reasoning field names (may vary: `thinking`, `reasoning_content`, `content[type=thinking]`, etc.).
 
-## Multi-key per provider (lib/keyring.js, 2026-05-19)
+## Multi-key per provider (lib/keyring.js -> okeydokey, 2026-05-19; migrated 2026-09-05)
+
+**The implementation now lives in okeydokey**, the centralized credential broker
+(`okeydokey/keyring`). `lib/keyring.js` is a ~60-line adapter that keeps this
+codebase's envKey-shaped vocabulary -- `getKey`/`markKeyFailed`/`peekStatus`, and
+the `key` field name `GET /v1/keyring/status` publishes -- over okeydokey's
+generic credential ring. Credential ordering, per-credential backoff, masking and
+the rotation loop are okeydokey's; nothing in this repo reimplements them, and
+adding a second implementation of any of them is how two surfaces measuring one
+credential's health start disagreeing about it. Behaviour is unchanged: a
+differential over both implementations with identical inputs agreed byte-for-byte
+on every exported function, with two deliberate exceptions noted at the end of
+this section.
 
 Every provider envKey (e.g. `GROQ_API_KEY`) accepts N keys seamlessly:
 
@@ -135,11 +147,17 @@ Every provider envKey (e.g. `GROQ_API_KEY`) accepts N keys seamlessly:
 - Additional: `GROQ_API_KEY_1` ... `GROQ_API_KEY_99` (each contributes one key, in declared order, deduped)
 - Escape hatch: `ACPTOAPI_KEYS_GROQ_API_KEY=["key-a","key-b"]` (JSON array)
 
-`lib/keyring.js` is the single source of truth  - `getKey(envKey)` returns the first usable key (skipping cooldown-blocked ones); `listUsable(envKey)` returns all currently-usable keys in declared order; `markKeyFailed(envKey, key, reason)` records a per-key backoff with steps `[30s, 60s, 2m, 4m, 8m]` (`BACKOFF_STEPS_MS`, keyring.js:6 — its own comment says these steps mirror `lib/sampler.js`, but the two schedules have since diverged, see "Sampler backoff strategy" below). Classification: 401/403 -> `auth`, 429 -> `rate_limit`, 5xx -> `upstream_5xx` (not backoff-worthy; provider issue not key issue).
+`lib/keyring.js` is the single entry point for this repo  - `getKey(envKey)` returns the first usable key (skipping cooldown-blocked ones); `listUsable(envKey)` returns all currently-usable keys in declared order; `markKeyFailed(envKey, key, reason)` records a per-key backoff with steps `[30s, 60s, 2m, 4m, 8m]` (`DEFAULT_BACKOFF_STEPS_MS` in okeydokey's `src/keyring/backoff.js`, re-exported here as `_BACKOFF_STEPS_MS`; these are NOT the same schedule as `lib/sampler.js`'s, see "Sampler backoff strategy" below). Classification: 401/403 -> `auth`, 429 -> `rate_limit`, 5xx -> `upstream_5xx` (not backoff-worthy; provider issue not key issue).
+
+`keyring.rotateKeys(envKey, attempt, {onRotate})` is the shared rotation loop. Three near-identical copies of it previously lived in `handleBrandChat`, `executeBrandModel` and `lib/passthrough.js`, and had already drifted: only the direct brand path logged rotations, so a chain-routed request rotated silently and left an operator no record of which key was tried. All three now call `rotateKeys`, which advances on `auth`/`rate_limit`, stops on anything else (a 5xx is the upstream's answer, not the key's), marks the outcome, and returns `{result, credential, index, candidateCount, rotations, exhausted}`.
+
+Two behaviours deliberately differ from the pre-migration implementation: `reset()` with no argument now actually clears the ring (it previously scanned for a key prefix of `"undefined|"` and cleared nothing), and an aliased env name expands the same way the canonical one does, so `GOOGLE_API_KEY_1` and `ACPTOAPI_KEYS_GOOGLE_API_KEY` now contribute keys where previously only the bare alias was read.
 
 `handleBrandChat` in `lib/server.js` rotates keys inline on `auth`/`rate_limit` responses, only falling through to the next chain link after every key for the provider is exhausted. Server log emits `[acptoapi] key-rotate provider=<name> reason=<r> key-index=<i> next-index=<i+1>` on each rotation. (`POST /v1/embeddings` no longer exists as a live route  - `handleEmbeddingsGone` always returns `410 {code:'embeddings_not_here'}`, see "Brand Routing" below; embeddings moved to rs-learn's native embedder.)
 
-Direct `process.env[envKey]` reads outside `lib/keyring.js` are forbidden for known provider keys  - all consumers (sdk.js, server.js, passthrough.js, media-passthrough.js, auto-chain.js, model-resolver.js, model-probe-live.js) route through the keyring.
+Direct `process.env[envKey]` reads outside `lib/keyring.js` are forbidden for known provider keys  - all consumers (sdk.js, server.js, passthrough.js, media-passthrough.js, auto-chain.js, model-resolver.js, model-probe-live.js, brand-catalog.js, readiness.js, client.js, extra-providers.js, providers/nvidia.js, bin/acptoapi.js) route through the keyring. A `grep` for `process.env.<PROVIDER>_API_KEY` across `lib/`, `bin/` and `index.js` should return nothing; every hit is a site that will be blind to indexed names, the JSON bag and aliases.
+
+**This rule was being violated in seven places until 2026-09-05, and each one was a real invisibility.** `GET /v1/models` gated its anthropic and gemini rows on `process.env.ANTHROPIC_API_KEY`/`GEMINI_API_KEY`, so with a key configured only as `ANTHROPIC_API_KEY_1` or only under the `GOOGLE_API_KEY` alias those models were absent from the listing entirely  - live-witnessed: `google/gemini-2.5-pro`, `google/gemini-2.0-flash` and all three `anthropic/*` rows missing before the fix, all present after, with the same env. The same read gated bare-`claude-*` model routing, the nvidia catalog fetch, the image-generation provider default, `model-probe-live.js`'s `isAvailable`, and both CLI key-presence commands.
 
 **Observability:** `GET /v1/keyring/status` returns `{providers: [{provider, envKey, keys: [{index, key (masked: 'prefix...suffix'), ok, failCount, lastFailedAt, lastReason, inBackoff, nextRetryInMs}]}]}`.
 
@@ -379,6 +397,8 @@ Mapping raw request bodies through `translate()` requires converting to canonica
 
 Provider id `xai-oauth` (RFC 8628 device-code flow, token store `~/.acptoapi/xai-oauth.json`, real entry point `executeXaiOauthModel` -> `xai-oauth.js`'s shared `chatCompletion()`, auto-chain gated by `xaiOauthLoggedIn()` checking `isRefreshDead()` then `hasCredentials()`). CLI: `node bin/acptoapi.js --xai-oauth-login`. Full detail (endpoints, client_id, scope, refresh/origin-pinning, HTTP wiring, dead-refresh-token exclusion) recall-fireable under "acptoapi xAI Grok OAuth device-code provider".
 
+**Migrated to okeydokey (2026-09-05).** The RFC 8628 mechanics -- OIDC discovery, origin pinning, the device authorization request, the polling loop through `authorization_pending`/`slow_down`, the refresh exchange, the permanently-dead-refresh marker, JWT expiry inspection and the atomic on-disk token store -- are `okeydokey/device-code`'s, not this repo's. `lib/xai-oauth.js` is now 280 lines of xAI-specific configuration over that engine (endpoints, client id, scope, inference base URL, the 403 meaning the account has no API entitlement, and the chat call with its retry policy). All 14 exports keep their names and shapes, so server.js/readiness.js/auto-chain.js/sdk.js/chain-machine.js/openai-brands.js are untouched. **The on-disk token store is format-compatible in both directions**: records written before the migration keep their endpoints under `discovery`, and the store adapter reads both that and the engine's `endpoints` and writes both, so an existing login survives the change and a downgrade still reads the file.
+
 ## Testing: No Mocks, Only Real Backends
 
 acptoapi forbids mocks anywhere in tests. This includes:
@@ -510,7 +530,7 @@ The background sampler (`startSampler`, default interval 3600000ms = 1h) re-prob
 Two layers, distinct granularity:
 
 1. **Provider-level** (sampler): a `rate_limit` failure trips the prefix breaker per the sibling rule above, demoting the whole provider for the backoff window.
-2. **Key-level** (keyring, per `(envKey, key)`): `handleBrandChat` rotates keys INLINE before falling to the next chain link. `keyring.classify(status)` (keyring.js:177): `401|403 -> auth`, `429 -> rate_limit`, `>=500 -> upstream_5xx`. **`upstream_5xx` is deliberately NOT backoff-worthy**  - a 5xx is the provider's fault, not the key's, so the key is not penalized. `markKeyFailed` applies the same `[30s,60s,2m,4m,8m]` per-key backoff for `auth`/`rate_limit`.
+2. **Key-level** (keyring, per `(envKey, key)`): `handleBrandChat` rotates keys INLINE before falling to the next chain link, via the shared `keyring.rotateKeys`. `keyring.classify(status)` (okeydokey's `src/keyring/classify.js`): `401|403 -> auth`, `429 -> rate_limit`, `>=500 -> upstream_5xx`. **`upstream_5xx` is deliberately NOT backoff-worthy**  - a 5xx is the provider's fault, not the key's, so the key is not penalized, and `rotateKeys` stops rather than burning the rest of the set on it. `markKeyFailed` applies the same `[30s,60s,2m,4m,8m]` per-key backoff for `auth`/`rate_limit`.
 
 **Key rotation order**: `listUsable(envKey)` returns keys in DECLARED order (`GROQ_API_KEY`, then `_1`.._99`, then the `ACPTOAPI_KEYS_<NAME>` JSON-array escape hatch), filtering out any key currently in backoff. `getKey(envKey)` returns the first usable key, or  - when ALL keys are in backoff  - the one whose backoff expires soonest (so callers attempt rather than hard-fail). Server log emits `[acptoapi] key-rotate provider=<name> reason=<r> key-index=<i> next-index=<i+1>` on each rotation. Only after every key for a provider is exhausted does the chain fall through to the next link.
 
@@ -749,8 +769,8 @@ curl -s -X POST http://127.0.0.1:4800/debug/translate -H 'content-type: applicat
 ### CLI reference (bin/acptoapi.js)
 
 - `acptoapi` (no flags)  - start the server (`--port N`, `--kilo <url>`, `--opencode <url>`).
-- `acptoapi --probe`  - print env-key presence per provider (`OK`/`--` per key) and exit.
-- `acptoapi --missing-free`  - list every provider with a genuine free tier (curated `FREE_TIER_INFO` table in `bin/acptoapi.js`, excludes paid-only and local/no-key providers) whose env key is NOT currently set, with its signup URL and a one-line note. Useful for "what free keys should I add" onboarding.
+- `acptoapi --probe`  - print key presence per provider (`OK`/`--`, plus a key count when more than one is configured) and exit. Presence is asked through the keyring, not `process.env` directly, so a provider whose only key sits under an indexed name (`GROQ_API_KEY_1`), the `ACPTOAPI_KEYS_<NAME>` JSON bag, or a same-credential alias (`GOOGLE_API_KEY` for gemini) reports `OK` rather than missing.
+- `acptoapi --missing-free`  - list every provider with a genuine free tier (curated `FREE_TIER_INFO` table in `bin/acptoapi.js`, excludes paid-only and local/no-key providers) that has NO usable key by any of the keyring's conventions, with its signup URL and a one-line note. Useful for "what free keys should I add" onboarding. It reads through the keyring for the reason above: reading `process.env` directly told people to go sign up for a key they already had, whenever that key was configured under an indexed name, the JSON bag, or an alias.
 - `acptoapi --list-brands`  - list OpenAI-compat brand prefixes.
 - `acptoapi --list-chains`  - list config-defined named chains (`<name>: a -> b -> c`).
 - `acptoapi --list-models [--port N]`  - queries a RUNNING server's `/v1/models` + `/v1/availability` + `/v1/sampler/status` and prints every live model ranked by availability score with an `OK`/`DOWN`/`?` health flag  - terminal equivalent of the docs demo UI's model picker. Requires a server already listening on the target port; errors with a clear hint if none is reachable.
