@@ -89,7 +89,7 @@ if (args.includes('--missing-free')) {
   const missing = all.filter(({ name, envKey }) => {
     const info = FREE_TIER_INFO[name];
     if (!info || info.free !== true) return false; // skip paid-only and local (no key needed)
-    return envKey && !process.env[envKey];
+    return envKey && !require('../lib/keyring').hasAnyKey(envKey);
   });
   if (missing.length === 0) {
     console.log('All free-tier providers with a signup key are already configured.');
@@ -106,17 +106,27 @@ if (args.includes('--missing-free')) {
 } else if (args.includes('--probe')) {
   (async () => {
     const { listBrands, getBrand } = require('../lib/openai-brands');
+    // Asked through the keyring, not process.env directly: a provider whose
+    // only key is under an indexed name, the JSON-array bag or a
+    // same-credential alias is genuinely configured, and reading the bare env
+    // var reported it as missing -- which for --missing-free meant telling
+    // someone to go sign up for a key they already had.
+    const keyring = require('../lib/keyring');
+    const count = (k) => keyring.getKeys(k).length;
     const checks = [
-      { name: 'ANTHROPIC_API_KEY', set: !!process.env.ANTHROPIC_API_KEY },
-      { name: 'GEMINI_API_KEY', set: !!process.env.GEMINI_API_KEY },
-      { name: 'OLLAMA_URL', set: !!process.env.OLLAMA_URL || true, value: process.env.OLLAMA_URL || 'http://localhost:11434' },
-      { name: 'AWS_ACCESS_KEY_ID', set: !!process.env.AWS_ACCESS_KEY_ID },
+      { name: 'ANTHROPIC_API_KEY', keys: count('ANTHROPIC_API_KEY') },
+      { name: 'GEMINI_API_KEY', keys: count('GEMINI_API_KEY') },
+      { name: 'OLLAMA_URL', keys: 1, value: process.env.OLLAMA_URL || 'http://localhost:11434' },
+      { name: 'AWS_ACCESS_KEY_ID', keys: count('AWS_ACCESS_KEY_ID') },
     ];
     for (const b of listBrands()) {
       const k = getBrand(b).envKey;
-      checks.push({ name: `${b} (${k})`, set: !!process.env[k] });
+      checks.push({ name: `${b} (${k || 'no env key'})`, keys: k ? count(k) : 0 });
     }
-    for (const c of checks) console.log(`${c.set ? 'OK ' : '-- '} ${c.name}${c.value ? ' = ' + c.value : ''}`);
+    for (const c of checks) {
+      const tally = c.keys > 1 ? ` (${c.keys} keys)` : '';
+      console.log(`${c.keys > 0 ? 'OK ' : '-- '} ${c.name}${c.value ? ' = ' + c.value : ''}${tally}`);
+    }
     process.exit(0);
   })();
 } else if (args.includes('--update')) {
