@@ -767,8 +767,8 @@ curl -s -X POST http://127.0.0.1:4800/debug/translate -H 'content-type: applicat
 ### CLI reference (bin/acptoapi.js)
 
 - `acptoapi` (no flags)  - start the server (`--port N`, `--kilo <url>`, `--opencode <url>`).
-- `acptoapi --probe`  - print env-key presence per provider (`OK`/`--` per key) and exit.
-- `acptoapi --missing-free`  - list every provider with a genuine free tier (curated `FREE_TIER_INFO` table in `bin/acptoapi.js`, excludes paid-only and local/no-key providers) whose env key is NOT currently set, with its signup URL and a one-line note. Useful for "what free keys should I add" onboarding.
+- `acptoapi --probe`  - print key presence per provider (`OK`/`--`, plus a key count when more than one is configured) and exit. Presence is asked through the keyring, not `process.env` directly, so a provider whose only key sits under an indexed name (`GROQ_API_KEY_1`), the `ACPTOAPI_KEYS_<NAME>` JSON bag, or a same-credential alias (`GOOGLE_API_KEY` for gemini) reports `OK` rather than missing.
+- `acptoapi --missing-free`  - list every provider with a genuine free tier (curated `FREE_TIER_INFO` table in `bin/acptoapi.js`, excludes paid-only and local/no-key providers) that has NO usable key by any of the keyring's conventions, with its signup URL and a one-line note. Useful for "what free keys should I add" onboarding. It reads through the keyring for the reason above: reading `process.env` directly told people to go sign up for a key they already had, whenever that key was configured under an indexed name, the JSON bag, or an alias.
 - `acptoapi --list-brands`  - list OpenAI-compat brand prefixes.
 - `acptoapi --list-chains`  - list config-defined named chains (`<name>: a -> b -> c`).
 - `acptoapi --list-models [--port N]`  - queries a RUNNING server's `/v1/models` + `/v1/availability` + `/v1/sampler/status` and prints every live model ranked by availability score with an `OK`/`DOWN`/`?` health flag  - terminal equivalent of the docs demo UI's model picker. Requires a server already listening on the target port; errors with a clear hint if none is reachable.
