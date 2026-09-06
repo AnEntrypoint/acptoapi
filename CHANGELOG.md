@@ -5,6 +5,10 @@ Each line is prefixed `feat:`, `fix:`, `BREAKING:`, or `deprecation:` (with a mi
 Patch-level CI version bumps (`ci: bump version [skip ci]`) are omitted as separate entries;
 their content is folded into the following real entry. Plain ASCII only.
 
+## [1.0.245] - 2026-09-06
+
+- fix: `POST /v1/chat/completions` silently treated a whole comma-separated chain string (e.g. `deepseek/bogus, xai-oauth/grok-4.6`) as ONE link - `splitBrandModel`'s regex matches a raw comma string as a single prefix/rest pair, so the chain exhausted after exactly one attempt and never tried the remaining links, even though `sdk.js`'s own in-process `chat()`/`chatChain()` already split via `parseCommaList` correctly. `handleChat` now splits on comma first, reusing `sdk.js`'s `parseCommaList`, before the named-chain/directly-routable resolution.
+
 ## [1.0.216] - 2026-08-31 (fluidity pass)
 
 - fix: `credit_dead` was mistakenly excluded per-brand instead of per-model, taking a multi-model aggregator's genuinely-working free models (e.g. opencode-zen's `nemotron-3-ultra-free`) out of the chain alongside its actually-dead paid models; `availability.js` now tracks `markCreditDead`/`isCreditDead` per full model id, and `brand-catalog.js` reverted to auth-dead-only (401/403) brand-wide exclusion.
