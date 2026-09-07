@@ -7,6 +7,25 @@ const fs = require('fs');
 // Load dotenv from both locations with ~/.acptoapi/.env taking precedence
 const devDotEnv = path.join(path.resolve(__dirname, '..'), '.env');
 const userDotEnv = path.join(os.homedir(), '.acptoapi', '.env');
+const envExample = path.join(path.resolve(__dirname, '..'), '.env.example');
+
+// First run on this machine: ~/.acptoapi/.env doesn't exist yet, so nothing
+// tells a fresh user which provider keys this server actually understands --
+// every provider silently reads as "not configured" with no pointer to what
+// to fill in. Scaffold it from the shipped .env.example (the one file that
+// already enumerates every recognized env var) so it shows up once, ready to
+// edit, instead of a user having to go hunting through node_modules for the
+// package's own example file. Copied, not duplicated inline here, so editing
+// .env.example alone keeps this scaffold in sync with no second place to update.
+if (!fs.existsSync(userDotEnv) && fs.existsSync(envExample)) {
+  try {
+    fs.mkdirSync(path.dirname(userDotEnv), { recursive: true });
+    fs.copyFileSync(envExample, userDotEnv);
+    console.log(`[acptoapi] no ${userDotEnv} yet -- wrote a blank template from .env.example. Fill in the provider keys you have, then restart.`);
+  } catch (e) {
+    console.error(`[acptoapi] could not scaffold ${userDotEnv}: ${e.message}`);
+  }
+}
 
 // Load the dev .env file first
 if (fs.existsSync(devDotEnv)) {
