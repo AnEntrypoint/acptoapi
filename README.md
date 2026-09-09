@@ -27,7 +27,7 @@ npx acptoapi          # starts on :4800
 bun x acptoapi        # same, via bun
 ```
 
-Requires Node.js >= 18.
+Requires Node.js >= 20.19.0 (see `engines` in package.json).
 
 ## Quick start
 
