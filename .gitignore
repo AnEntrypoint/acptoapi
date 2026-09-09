@@ -1,2 +1,37 @@
 node_modules/
 .env
+.env.local
+dist/
+
+# gm skill runtime state -- machine-local (spool queue, browser profiles,
+# caches, sqlite databases, per-turn timestamps/counters). .gm/prd.yml,
+# .gm/mutables.yml, .gm/memories/, .gm/disciplines/ and .gm/next-step.md
+# are the tracked, cross-session-meaningful parts and are NOT matched here.
+.gm/exec-spool/
+.gm/browser-profile-default/
+.gm/config-source-cache-default*
+.gm/ingest-drafts/
+.gm/instructions/
+.gm/trajectory-drafts/
+.gm/gm.db*
+.gm/rs-learn.db*
+.gm/git-block-counter.json
+.gm/rslearn-counter.json
+.gm/turn-state.json
+.gm/.gm-continue-count
+.gm/last-dispatch-ts
+.gm/last-instruction-ts
+.gm/last-prompt.txt
+.gm/lastskill
+.gm/long-gap-retry-state
+.gm/no-memorize-this-turn
+.gm/residual-check-fired
+
+.agentplug/
+.agentplug-kv/
+.kilo/
+.plugkit-browser-profile/
+.gm-browser-profile*/
+
+# crash artifacts / personal dev scratch scripts, never meant for the repo
+*.stackdump
