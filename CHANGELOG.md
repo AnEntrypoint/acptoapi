@@ -2,8 +2,8 @@
 
 All notable changes are documented here. Entries use `[X.Y.Z] YYYY-MM-DD` headers.
 Each line is prefixed `feat:`, `fix:`, `BREAKING:`, or `deprecation:` (with a migration path).
-Patch-level CI version bumps (`ci: bump version [skip ci]`) are omitted as separate entries;
-their content is folded into the following real entry. Plain ASCII only.
+Patch-level version-bump-only commits are omitted as separate entries; their
+content is folded into the following real entry. Plain ASCII only.
 
 ## [1.0.245] - 2026-09-06
 
