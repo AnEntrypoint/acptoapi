@@ -4,6 +4,40 @@ const path = require('path');
 const os = require('os');
 const fs = require('fs');
 
+const HELP_TEXT = `acptoapi -- any-to-any AI protocol bridge
+
+Usage: acptoapi [command] [options]
+
+With no command, starts the HTTP server (default port 4800, or $PORT).
+
+Commands:
+  claude [args...]        Run via the Claude Code CLI wrapper
+
+Options:
+  --port <n>               Port to listen on (default 4800, env PORT)
+  --kilo <url>              Override kilo ACP backend base URL (env ACP_KILO_URL)
+  --opencode <url>          Override opencode ACP backend base URL (env ACP_OPENCODE_URL)
+  --claude <url>            Override claude ACP backend base URL (env ACP_CLAUDE_URL)
+  --probe                   Print provider key presence (via the keyring) and exit
+  --missing-free            List free-tier providers with no key configured yet, and exit
+  --list-brands             List OpenAI-compat brand prefixes and exit
+  --list-chains             List config-defined named chains and exit
+  --list-models [--port n]  Query a running server's /v1/models + availability + sampler
+                            status, print ranked models, and exit (requires a running server)
+  --xai-oauth-login         Run the xAI Grok OAuth device-code login flow
+  --openai-oauth-login      Run the OpenAI OAuth device-code login flow
+  --update                  Clear npx/bun caches, report latest npm version, and exit
+  --help, -h                Show this help and exit
+
+Config: ~/.acptoapi/.env holds provider API keys (scaffolded from .env.example on
+first run). See AGENTS.md in the repo for the full environment variable reference.
+`;
+
+if (process.argv.slice(2).some(a => a === '--help' || a === '-h')) {
+  console.log(HELP_TEXT);
+  process.exit(0);
+}
+
 // Load dotenv from both locations with ~/.acptoapi/.env taking precedence
 const devDotEnv = path.join(path.resolve(__dirname, '..'), '.env');
 const userDotEnv = path.join(os.homedir(), '.acptoapi', '.env');
@@ -170,6 +204,9 @@ if (args.includes('--missing-free')) {
 } else if (args.includes('--xai-oauth-login')) {
   const xaiOauth = require('../lib/xai-oauth');
   xaiOauth.login().then(() => process.exit(0)).catch(e => { console.error('[acptoapi] xai-oauth login failed:', e.message); process.exit(1); });
+} else if (args.includes('--openai-oauth-login')) {
+  const openaiOauth = require('../lib/openai-oauth');
+  openaiOauth.login().then(() => process.exit(0)).catch(e => { console.error('[acptoapi] openai-oauth login failed:', e.message); process.exit(1); });
 } else if (args.includes('--list-models')) {
   (async () => {
     const targetPort = Number(get('--port', process.env.PORT || 4800));
