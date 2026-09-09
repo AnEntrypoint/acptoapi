@@ -25,7 +25,8 @@ Options:
   --list-models [--port n]  Query a running server's /v1/models + availability + sampler
                             status, print ranked models, and exit (requires a running server)
   --xai-oauth-login         Run the xAI Grok OAuth device-code login flow
-  --openai-oauth-login      Run the OpenAI OAuth device-code login flow
+  --openai-oauth-login      Run a separate OpenAI OAuth device-code login flow
+                            (existing Codex login is used automatically)
   --update                  Clear npx/bun caches, report latest npm version, and exit
   --help, -h                Show this help and exit
 
