@@ -121,10 +121,11 @@ function renderPicker() {
 function pickerRow(e) {
   const active = e.value === picker.selected ? ' active' : '';
   const dot = picker.mode === 'model' ? statusDot(e.ok) : '';
-  return `<div class="picker-row${active}" data-value="${escapeAttr(e.value)}" title="${escapeAttr(e.sub)}">
+  const selected = e.value === picker.selected;
+  return `<button type="button" class="picker-row${active}" data-value="${escapeAttr(e.value)}" title="${escapeAttr(e.sub)}" aria-pressed="${selected}">
     ${dot}<span class="picker-row-label">${escapeHtml(e.label)}</span>
     <span class="picker-row-sub">${escapeHtml(e.sub)}</span>
-  </div>`;
+  </button>`;
 }
 
 function escapeHtml(s) { return String(s || '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
@@ -140,12 +141,23 @@ function selectEntry(value) {
 
 function setMode(mode) {
   picker.mode = mode;
-  document.querySelectorAll('.picker-mode').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+  document.querySelectorAll('.picker-mode').forEach(b => {
+    const active = b.dataset.mode === mode;
+    b.classList.toggle('active', active);
+    b.setAttribute('aria-pressed', String(active));
+  });
   renderPicker();
 }
 
-function openPickerPanel() { $('picker-panel').classList.add('open'); $('picker-search').focus(); }
-function closePickerPanel() { $('picker-panel').classList.remove('open'); }
+function openPickerPanel() {
+  $('picker-panel').classList.add('open');
+  $('picker-trigger').setAttribute('aria-expanded', 'true');
+  $('picker-search').focus();
+}
+function closePickerPanel() {
+  $('picker-panel').classList.remove('open');
+  $('picker-trigger').setAttribute('aria-expanded', 'false');
+}
 function togglePickerPanel() { $('picker-panel').classList.contains('open') ? closePickerPanel() : openPickerPanel(); }
 
 async function initModels(endpoint) {
