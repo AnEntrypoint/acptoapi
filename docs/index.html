@@ -58,9 +58,10 @@
     .picker-modes { display: flex; gap: 4px; padding: 8px 8px 0 8px; }
     .picker-mode {
       font-family: var(--ff-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
-      padding: 4px 8px; border-radius: 5px; color: var(--panel-text-2); cursor: pointer; background: var(--panel-2);
+      padding: 4px 8px; border: 0; border-radius: 5px; color: var(--panel-text-2); cursor: pointer; background: var(--panel-2);
     }
     .picker-mode.active { background: var(--panel-accent); color: var(--panel-accent-fg, #fff); }
+    .picker-mode:focus-visible, .picker-row:focus-visible { outline: 2px solid var(--panel-accent); outline-offset: 2px; }
     .picker-search {
       margin: 8px; padding: 6px 9px; font: inherit; font-size: 12px; font-family: var(--ff-mono);
       background: var(--panel-0); color: var(--panel-text); border: 1px solid var(--panel-3); border-radius: 6px; outline: none;
@@ -73,7 +74,8 @@
       color: var(--panel-text-2); padding: 6px 8px 2px 8px;
     }
     .picker-row {
-      display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 5px; cursor: pointer; font-size: 12px;
+      display: flex; align-items: center; gap: 8px; width: 100%; padding: 5px 8px; border: 0; border-radius: 5px;
+      cursor: pointer; font: inherit; font-size: 12px; text-align: left; background: transparent; color: inherit;
     }
     .picker-row:hover { background: var(--panel-2); }
     .picker-row.active { background: var(--panel-2); color: var(--panel-accent); }
@@ -154,16 +156,16 @@
         <div class="demo-row">
           <label>model</label>
           <div class="picker">
-            <button type="button" class="picker-trigger" id="picker-trigger">
+            <button type="button" class="picker-trigger" id="picker-trigger" aria-expanded="false" aria-controls="picker-panel">
               <span id="picker-trigger-label">loading...</span>
               <span class="caret">v</span>
             </button>
             <input type="hidden" id="model-value" value="" />
-            <div class="picker-panel" id="picker-panel">
+            <div class="picker-panel" id="picker-panel" role="dialog" aria-label="Choose a model, chain, or queue">
               <div class="picker-modes">
-                <span class="picker-mode active" data-mode="model">model</span>
-                <span class="picker-mode" data-mode="chain">chain</span>
-                <span class="picker-mode" data-mode="queue">queue</span>
+                <button type="button" class="picker-mode active" data-mode="model" aria-pressed="true">model</button>
+                <button type="button" class="picker-mode" data-mode="chain" aria-pressed="false">chain</button>
+                <button type="button" class="picker-mode" data-mode="queue" aria-pressed="false">queue</button>
               </div>
               <input type="text" class="picker-search" id="picker-search" placeholder="filter by id or provider..." />
               <div class="picker-list" id="picker-list"></div>
