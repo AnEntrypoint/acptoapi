@@ -19,13 +19,13 @@
 - session_id: acptoapi-okeydokey-keymgmt-2026-09-05
   id: prd-keyring-to-okeydokey
   title: Move credential handling out of lib/keyring.js into okeydokey
-  description: 'lib/keyring.js held acptoapi''s own credential ordering, per-key backoff and masking, with three near-identical rotation loops on top of it in handleBrandChat, executeBrandModel and lib/passthrough.js. All of it moved to okeydokey/keyring; lib/keyring.js is now a thin adapter preserving the envKey vocabulary and the GET /v1/keyring/status field names. The three rotation loops collapsed into one shared keyring.rotateKeys. Net -128 lines across the repo.'
+  description: lib/keyring.js held acptoapi's own credential ordering, per-key backoff and masking, with three near-identical rotation loops on top of it in handleBrandChat, executeBrandModel and lib/passthrough.js. All of it moved to okeydokey/keyring; lib/keyring.js is now a thin adapter preserving the envKey vocabulary and the GET /v1/keyring/status field names. The three rotation loops collapsed into one shared keyring.rotateKeys. Net -128 lines across the repo.
   status: completed
   witness: 'Differential over the pre-migration implementation and the adapter, driven with identical inputs against the same process.env: byte-identical on getKeys/getKey/listUsable/hasAnyKey/peekStatus, classify across 18 status codes, and the full markFailed/markOk/reset lifecycle including the all-keys-cooling case. The differential was shown to report DIVERGED on two reintroduced defects (indexedSuffixMax 99->9, wrong bag prefix) before its IDENTICAL result was trusted. Live-witnessed against the real groq API on a running server (port 4881) with three invalid keys spread across all three declaration conventions (GROQ_API_KEY, _1, ACPTOAPI_KEYS_ JSON bag): all three tried in order ~70ms apart, each marked auth-failed with a 30s cooldown, GET /v1/keyring/status and GET /debug/why both reporting the documented shape, and two key-rotate log lines emitted on a chain-routed request that previously logged none. Alias resolution confirmed live: GEMINI_API_KEY and GOOGLE_API_KEY both surfaced under the gemini provider.'
 - session_id: acptoapi-okeydokey-keymgmt-2026-09-05
   id: prd-xai-oauth-to-okeydokey
   title: Move the xAI device-code lifecycle into okeydokey
-  description: 'lib/xai-oauth.js carried its own OIDC discovery, origin pinning, RFC 8628 device grant, polling loop, refresh exchange, JWT expiry inspection and atomic token store - none xAI-specific. All moved to okeydokey/device-code; the file is now 280 lines (was 441) of xAI configuration over that engine. All 14 exports unchanged, so the six consuming modules are untouched. The on-disk token store is format-compatible in both directions so an existing login survives.'
+  description: lib/xai-oauth.js carried its own OIDC discovery, origin pinning, RFC 8628 device grant, polling loop, refresh exchange, JWT expiry inspection and atomic token store - none xAI-specific. All moved to okeydokey/device-code; the file is now 280 lines (was 441) of xAI configuration over that engine. All 14 exports unchanged, so the six consuming modules are untouched. The on-disk token store is format-compatible in both directions so an existing login survives.
   status: completed
   witness: 'Differential over the pre-migration module: 39 probed inputs agree, covering every constant, validateInferenceBaseUrl across allowed hosts and rejected ones (plain http, another origin, a lookalike suffix, malformed input), isAccessTokenExpiring across skew boundaries and non-JWT tokens, and the store states absent/corrupt/pre-migration-format/refresh-dead, including getCredentials resolving a token from a pre-migration record and the exact error text with no store. Live-witnessed against xAI''s own device-authorization endpoint: old and new both obtained a real device grant with identical field sets, verification host (accounts.x.ai), poll interval (5s) and expiry (1800s). All seven lib modules that require xai-oauth load clean; the server boots and serves /health.'
 - session_id: acptoapi-okeydokey-keymgmt-2026-09-05
@@ -40,3 +40,26 @@
   description: 'splitStream''s pump was a detached async IIFE with no catch, so a source that threw hung both halves forever AND escaped an unhandled rejection to the process, terminating Node - createProcessor.start()''s own try/catch was bypassed entirely. Also: stopping a split did not stop its pump; only the first ERROR message was ever recorded because the push was gated on the transition being legal; stop() before start() was a no-op that left the status reading idle while start() then ran the pipeline; and zip leaked every source longer than its shortest.'
   status: completed
   witness: 'Measured before: a processor whose input threw exited Node with an uncaught "input failed" rather than rejecting; stop() left status "idle"; two ERROR events recorded one message; a 3-item source zipped against a 1-item source never ran its finally. Measured after: start() rejects with the source error, status reads "error", the message is in state.errors, no unhandled rejection escapes; stop() reads "stopped" and a restart is honest about running; both ERROR messages recorded; the longer zip source is closed. Each of the four fixes was reverted individually and confirmed to fail its check. tsc --noEmit and eslint both clean.'
+- id: measure-agent-latency
+  subject: 'Measure acptoapi activity and agent-facing latency under live execution; precondition: current process/activity state is captured; invariant: observations are timestamped and queryable; postcondition: each attributable delay has a witnessed owner and budget.'
+  SESSION_ID: '1789114650241988781'
+  status: completed
+  witness: 'Live localhost:4800 measurements: control endpoints 3-69ms; metrics show 527 chat completions totaling 2833992ms; readiness endpoint reports one asynchronous 5050ms OAuth probe; direct SDK module import measured 130-145ms.'
+- id: remove-activity-jank
+  subject: 'Eliminate every measured acptoapi activity path that degrades agent fluidity; precondition: a causal latency witness exists; invariant: functional routing and observability remain intact; postcondition: live execution meets the established budget without regressing fallback behavior.'
+  SESSION_ID: '1789114650241988781'
+  status: completed
+  witness: Actual SDK execution with a single non-dynamic model after the change reports readinessStarts=0 and extraProvidersLoaded=false. Dotenv startup banner is suppressed using quiet:true. Dynamic candidate selection retains readiness and extra-provider initialization.
+- id: repair-stale-okeydokey-reference
+  subject: 'Replace the inherited deleted okeydokey branch reference with the verified default-branch release; precondition: the prior branch endpoint is absent; invariant: lockfile and adapter remain installable; postcondition: a clean dependency resolution follows a durable upstream ref.'
+  SESSION_ID: '1789114650241988781'
+  status: completed
+  witness: The deleted migration branch returns GitHub 404; upstream default branch is main and exposes the required keyring module. Local package.json already references github:AnEntrypoint/okeydokey#main.
+- id: complete-comment-sweep
+  subject: 'Complete the required exhaustive acptoapi comment sweep after literal gm codesearch is restored; precondition: literal search reports exhaustive results; invariant: behavior remains equivalent while comments become code or verified AGENTS.md facts; postcondition: every project comment is eliminated or relocated under the project rule.'
+  SESSION_ID: '1789114650241988781'
+  status: pending
+- id: activate-gm-performance-repair
+  subject: 'Activate and verify the gm scheduler and literal-search repairs; precondition: source patch exists and live plugin is stale; invariant: no unauthorised runner replacement or shared-daemon disruption; postcondition: active dispatches preempt indexing and literal codesearch reports exhaustive literal results.'
+  SESSION_ID: '1789114650241988781'
+  status: pending

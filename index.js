@@ -5,8 +5,8 @@ function loadDotEnvFilesForLibraryConsumers() {
     const fs = require('fs');
     const packageDotEnvPath = path.join(__dirname, '.env');
     const userHomeDotEnvPath = path.join(os.homedir(), '.acptoapi', '.env');
-    if (fs.existsSync(packageDotEnvPath)) require('dotenv').config({ path: packageDotEnvPath });
-    if (fs.existsSync(userHomeDotEnvPath)) require('dotenv').config({ path: userHomeDotEnvPath });
+    if (fs.existsSync(packageDotEnvPath)) require('dotenv').config({ path: packageDotEnvPath, quiet: true });
+    if (fs.existsSync(userHomeDotEnvPath)) require('dotenv').config({ path: userHomeDotEnvPath, quiet: true });
   } catch {}
 }
 loadDotEnvFilesForLibraryConsumers();
@@ -204,16 +204,13 @@ function registerChainModelsForReadiness(modelsOrChain) {
 }
 
 async function chat(opts) {
-  ensureReadinessStarted();
-  // Only actually wait when the request can resolve to an extra-N/* model
-  // (a literal 'auto' or comma-chain build, or already an explicit
-  // extra-N/... model) -- a request pinned to a real static brand never
-  // touches extra-providers at all, so it must never pay this wait.
   const model = opts && opts.model;
-  const touchesExtraProviders = model === 'auto' || (typeof model === 'string' && (model.includes(',') || /^extra-\d+\//.test(model)));
-  if (touchesExtraProviders) await ensureExtraProvidersReady();
-  else ensureExtraProvidersStarted();
-  if (model) registerChainModelsForReadiness(model);
+  const usesDynamicCandidates = model === 'auto' || (typeof model === 'string' && (model.includes(',') || /^(?:queue|chain|extra-\d+)\//.test(model)));
+  if (usesDynamicCandidates) {
+    ensureReadinessStarted();
+    await ensureExtraProvidersReady();
+    registerChainModelsForReadiness(model);
+  }
   return _chat(opts);
 }
 
