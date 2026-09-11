@@ -1,6 +1,4 @@
 node_modules/
-.env
-.env.local
 dist/
 
 # gm skill runtime state -- machine-local (spool queue, browser profiles,
@@ -35,3 +33,4 @@ dist/
 
 # crash artifacts / personal dev scratch scripts, never meant for the repo
 *.stackdump
+config.bat
