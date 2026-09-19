@@ -7,7 +7,11 @@ content is folded into the following real entry. Plain ASCII only.
 
 ## [1.0.247] - 2026-09-19
 
-- fix: `waitForLeadLinkPrecheck` no longer retains an unreachable wait loop after its early return. Happy-path TTFB is one `preCheck` plus last-link `sampler_backoff` force-through; fail-path same-link retry is unchanged.
+- fix: `waitForLeadLinkPrecheck` no longer retains an unreachable wait loop after its early return. Happy-path TTFB is one `preCheck`; `sampler_backoff` on the lead is forced through. Fail-path same-link retry is unchanged.
+
+## [1.0.246] - 2026-09-10
+
+- fix: xAI (`xai-oauth` and `xai`) subtracts a caller-supplied `max_tokens` from the remaining prompt budget, so a Freddie-sized output cap (256000, or 500000) made grok-4.6 reject a prompt that still fit the real window with `invalid-argument` / "This model's maximum prompt length is 500000 but the request contains 500943 tokens". `clampMaxTokensForModel` now omits `max_tokens` for those prefixes; `chatCompletion`, `handleXaiOauthChat`, and `sdk.buildParams` drop the field before the first upstream call, and the openai-compat stream path retries once without it if xAI still returns that 400.
 
 ## [1.0.245] - 2026-09-06
 
