@@ -5,6 +5,10 @@ Each line is prefixed `feat:`, `fix:`, `BREAKING:`, or `deprecation:` (with a mi
 Patch-level version-bump-only commits are omitted as separate entries; their
 content is folded into the following real entry. Plain ASCII only.
 
+## [1.0.247] - 2026-09-19
+
+- fix: `waitForLeadLinkPrecheck` no longer retains an unreachable wait loop after its early return. Happy-path TTFB is one `preCheck` plus last-link `sampler_backoff` force-through; fail-path same-link retry is unchanged.
+
 ## [1.0.245] - 2026-09-06
 
 - fix: `POST /v1/chat/completions` silently treated a whole comma-separated chain string (e.g. `deepseek/bogus, xai-oauth/grok-4.6`) as ONE link - `splitBrandModel`'s regex matches a raw comma string as a single prefix/rest pair, so the chain exhausted after exactly one attempt and never tried the remaining links, even though `sdk.js`'s own in-process `chat()`/`chatChain()` already split via `parseCommaList` correctly. `handleChat` now splits on comma first, reusing `sdk.js`'s `parseCommaList`, before the named-chain/directly-routable resolution.
