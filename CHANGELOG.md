@@ -5,6 +5,11 @@ Each line is prefixed `feat:`, `fix:`, `BREAKING:`, or `deprecation:` (with a mi
 Patch-level version-bump-only commits are omitted as separate entries; their
 content is folded into the following real entry. Plain ASCII only.
 
+## [1.0.248] - 2026-09-20
+
+- fix: pinned-model `buildAutoChainLive` no longer awaits `refreshAll`/`refreshAcpModels` that `buildAutoChain` then discards. Live: 710.7ms vs 3.4ms for `xai-oauth/grok-4.6`. Auto/unknown still refreshes.
+- fix: `GET /v1/models` probes ollama, chatjimmy, and ACP daemons concurrently; a dead ollama is cached for 30s so it does not serialize a 1500ms timeout ahead of the rest.
+
 ## [1.0.247] - 2026-09-19
 
 - fix: `waitForLeadLinkPrecheck` no longer retains an unreachable wait loop after its early return. Happy-path TTFB is one `preCheck`; `sampler_backoff` on the lead is forced through. Fail-path same-link retry is unchanged.
