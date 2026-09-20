@@ -6,7 +6,3 @@
   subject: 'Activate and verify the gm scheduler and literal-search repairs; precondition: source patch exists and live plugin is stale; invariant: no unauthorised runner replacement or shared-daemon disruption; postcondition: active dispatches preempt indexing and literal codesearch reports exhaustive literal results.'
   SESSION_ID: '1789114650241988781'
   status: pending
-- id: consolidate-inflight-xai-maxtokens-fix
-  subject: 'Finish verifying and commit the already-modified, uncommitted xAI max_tokens-omission fix (lib/model-token-limits.js, lib/providers/openai.js, lib/readiness.js, lib/sdk.js, lib/xai-oauth.js) inherited from a prior session -- tmp-verify-token-limits.js already passes (exit 0); precondition: no regressions from the grok-chain config fix; postcondition: git_finalize commits it, tmp-*/traffic-proxy/start-test-server.bat scratch files cleaned up or explicitly kept per user intent.'
-  session_id: acptoapi-grok-fallback-1789936000
-  status: pending

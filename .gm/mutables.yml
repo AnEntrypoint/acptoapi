@@ -40,3 +40,9 @@
   status: witnessed
   witness_evidence: 'Read ~/.acptoapi/chains.json (grok-with-fallback: [xai-oauth/grok-4.6]); lib/named-chains.js:97-104 resolveChain maps links array 1:1 with no expansion; .gm/server-restart.log lines 76-101 show attempt=1/1 on every grok stream try, lines 338/351 show fallback reason=exhausted with no second link; extra-probe-cache.json shows orcarouter''s declared model 429 free_rate_limited and all fallback-discovered models 402 insufficient_quota (zero working models).'
   session_id: acptoapi-grok-fallback-1789936000
+- id: mut-git-finalize-paths-not-honored
+  obligation_kind: invariant
+  body: 'git_finalize''s paths scoping was not honored when its absorb_concurrent_write step fired: passing paths:[5 lib files] still resulted in a commit containing 18 files (all dirty/untracked working-tree content at commit time), not just the 5 named paths. Reproduced live 2026-09-20 on acptoapi repo, commit 76e2c5c. Worth a c:\dev\gm fix per the user''s global INVARIANT 2 (fix gm friction in c:\dev\gm) -- not fixed this session (out of scope for the grok-fallback task), left as an explicit open item.'
+  status: witnessed
+  witness_evidence: git_finalize call with paths:[lib/model-token-limits.js, lib/providers/openai.js, lib/readiness.js, lib/sdk.js, lib/xai-oauth.js] returned steps including absorb_concurrent_write; git_show 76e2c5c --stat lists 18 changed files including .gm/mutables.yml, .gm/next-step.md, .gm/prd.yml, .gm/scan-deps-stamp.json, .gm/server-restart.log (2506 lines, previously untracked), start-test-server.bat, tmp-live-xai.js, tmp-verify-token-limits.js, traffic-proxy.js, and two .gm/dream-rsi/*/*.json files -- none of which were in the paths list.
+  session_id: acptoapi-grok-fallback-1789936000
