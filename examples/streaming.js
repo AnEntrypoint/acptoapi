@@ -1,9 +1,3 @@
-/**
- * streaming.js  - Streaming with all event types demonstrated
- *
- * Usage:
- *   GEMINI_API_KEY=your-key node examples/streaming.js
- */
 const { streamGemini } = require('../index');
 
 const tools = {

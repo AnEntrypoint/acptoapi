@@ -10,12 +10,11 @@ const FALLBACK_MODELS = [
 
 const $ = id => document.getElementById(id);
 
-// Selection state: what the picker currently offers and what's chosen.
 const picker = {
-  models: [],       // [{id, provider, ok, rank}]
-  chains: {},        // {name: [links]}
-  queues: [],        // [{name, links, source}]
-  mode: 'model',      // 'model' | 'chain' | 'queue'
+  models: [],
+  chains: {},
+  queues: [],
+  mode: 'model',
   filter: '',
   selected: '',
 };
@@ -96,7 +95,6 @@ function renderPicker() {
     return;
   }
 
-  // Group by provider for the model view; chains/queues render flat.
   if (picker.mode === 'model') {
     const groups = new Map();
     for (const e of entries) {

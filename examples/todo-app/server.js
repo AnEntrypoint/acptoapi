@@ -5,13 +5,11 @@ const app = express();
 app.use(express.json());
 app.use(express.static(__dirname));
 
-// In-memory todo store
 let todos = [
   { id: 1, title: 'Sample todo', completed: false }
 ];
 let nextId = 2;
 
-// API endpoints
 app.get('/api/todos', (req, res) => {
   res.json({ todos });
 });
@@ -50,7 +48,6 @@ app.delete('/api/todos/:id', (req, res) => {
   res.json({ removed });
 });
 
-// HTML page
 app.get('/', (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -131,5 +128,5 @@ app.get('/', (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(\`Todo app listening on http://localhost:\${PORT}\`);
+  console.log(`Todo app listening on http://localhost:${PORT}`);
 });

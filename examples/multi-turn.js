@@ -1,9 +1,3 @@
-/**
- * multi-turn.js  - Multi-turn conversation (chat history) example
- *
- * Usage:
- *   GEMINI_API_KEY=your-key node examples/multi-turn.js
- */
 const { generateGemini } = require('../index');
 
 async function chat(history, userMessage, options = {}) {

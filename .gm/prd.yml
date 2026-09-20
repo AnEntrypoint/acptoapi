@@ -2,7 +2,39 @@
   subject: 'Complete the required exhaustive acptoapi comment sweep after literal gm codesearch is restored; precondition: literal search reports exhaustive results; invariant: behavior remains equivalent while comments become code or verified AGENTS.md facts; postcondition: every project comment is eliminated or relocated under the project rule.'
   SESSION_ID: '1789114650241988781'
   status: pending
-- id: activate-gm-performance-repair
-  subject: 'Activate and verify the gm scheduler and literal-search repairs; precondition: source patch exists and live plugin is stale; invariant: no unauthorised runner replacement or shared-daemon disruption; postcondition: active dispatches preempt indexing and literal codesearch reports exhaustive literal results.'
-  SESSION_ID: '1789114650241988781'
+- id: comment-sweep-group-a-chain-core
+  subject: 'Comment sweep: auto-chain.js, chain-machine.js, chain.js, availability.js, sampler.js, matrix.js, named-chains.js, model-resolver.js, model-prober.js, model-probe-live.js -- eliminate or relocate every comment per INVARIANT 3, preserve behavior exactly, verify each file still requires cleanly.'
+  session_id: acptoapi-grok-fallback-1789936000
+  status: pending
+- id: comment-sweep-group-b-providers
+  subject: 'Comment sweep: lib/providers/{acp,anthropic,bedrock,chatjimmy,index,nvidia,ollama,openai-oauth,openai}.js -- eliminate or relocate every comment per INVARIANT 3, preserve behavior exactly, verify each file still requires cleanly.'
+  session_id: acptoapi-grok-fallback-1789936000
+  status: pending
+- id: comment-sweep-group-d-auth
+  subject: 'Comment sweep: keyring.js, xai-oauth.js, openai-oauth.js, brand-catalog.js, openai-brands.js, provider-maps.js, model-token-limits.js -- eliminate or relocate every comment per INVARIANT 3, preserve behavior exactly, verify each file still requires cleanly.'
+  session_id: acptoapi-grok-fallback-1789936000
+  status: pending
+- id: comment-sweep-group-e2-server-support
+  subject: 'Comment sweep: lib/server/anthropic.js, lib/server/openai.js, passthrough.js, media-passthrough.js, response-cache.js, metrics.js -- eliminate or relocate every comment per INVARIANT 3, preserve behavior exactly, verify each file still requires cleanly.'
+  session_id: acptoapi-grok-fallback-1789936000
+  status: pending
+- id: comment-sweep-group-f-sdk-routing
+  subject: 'Comment sweep: sdk.js, lib/sdk/anthropic.js, lib/sdk/openai.js, translate.js, router.js, router-stream.js, machine.js, convert.js, capabilities.js, transformers.js -- eliminate or relocate every comment per INVARIANT 3, preserve behavior exactly, verify each file still requires cleanly.'
+  session_id: acptoapi-grok-fallback-1789936000
+  status: pending
+- id: comment-sweep-group-g-infra
+  subject: 'Comment sweep: acp-client.js, acp-launcher.js, stdio-acp-wrapper.js, extra-providers.js, readiness.js, config.js, queues.js, client.js, errors.js, circuit-breaker.js, periodic-task.js, stream-guard.js, model-id.js, swe-bench-scores.js -- eliminate or relocate every comment per INVARIANT 3, preserve behavior exactly, verify each file still requires cleanly.'
+  session_id: acptoapi-grok-fallback-1789936000
+  status: pending
+- id: fix-todo-app-server-syntax-error
+  subject: Fix pre-existing unrelated syntax error in examples/todo-app/server.js (escaped backticks around a template literal on the last console.log line, fails node --check both before and after comment sweep) -- found by comment-sweep group H, left untouched per its no-behavior-change scope.
+  session_id: acptoapi-grok-fallback-1789936000
+  status: pending
+- id: remove-dead-passthrough-routes
+  subject: Remove dead/unreachable lib/passthrough.js PASSTHROUGH_ROUTES entries for /v1/images/generations and /v1/audio/speech (server.js's dispatcher always intercepts those two routes first via media-passthrough.js, found during comment-sweep group E2); verify /v1/moderations and /v1/rerank still work through lib/passthrough.js.
+  session_id: acptoapi-grok-fallback-1789936000
+  status: pending
+- id: full-repo-verify-after-comment-sweep
+  subject: 'After all 9 comment-sweep groups + AGENTS.md consolidation land: run a final exhaustive verification pass -- codesearch literal scan confirming zero standalone comment lines remain repo-wide, and a live smoke boot of the server (or broad require-all-modules check) confirming no behavior regression from the whole sweep before committing.'
+  session_id: acptoapi-grok-fallback-1789936000
   status: pending

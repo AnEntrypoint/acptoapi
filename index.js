@@ -156,28 +156,6 @@ function startOnceOnFirstRealCall(disableEnvVar, startFn) {
 const ensureReadinessStarted = startOnceOnFirstRealCall('ACPTOAPI_READINESS_DISABLE', () => readiness.start());
 const ensureExtraProvidersStarted = startOnceOnFirstRealCall('ACPTOAPI_EXTRA_PROVIDERS_DISABLE', () => require('./lib/extra-providers').start());
 
-// Live-witnessed real race: extra-providers.js's start() (above) is
-// fire-and-forget -- its first registration pass runs in the background,
-// unawaited. A chain built (buildAutoChain -> extra-0/* candidates, drawn
-// from PERSISTED availability history that outlives any single process) on
-// this same first real call can reference an extra-N/* model before that
-// prefix has finished registering in THIS process's own memory, at which
-// point extra-providers.js's isMultiModelPrefix(prefix) wrongly reports
-// false (nothing registered yet) -- so chain-machine.js's aggregator-vs-
-// single-backend sampler-backoff exemption isn't active yet, and one
-// early failure on that aggregator cascades prefix-wide sampler backoff
-// across every other sibling model, exactly the multi-model-aggregator
-// bug this exemption exists to prevent, but only during this narrow
-// cold-start window. Directly reproduced live via casey's own selftest
-// harness: a fresh process's first real turn hit this exact race and
-// degraded a turn that would otherwise have succeeded.
-//
-// Fixed by blocking the FIRST chat()/chatChain() call (only) on the
-// initial registration pass completing, with a bounded timeout so a slow
-// or misconfigured extra-providers.txt can never hang a real turn
-// indefinitely -- once initial registration is done (or the timeout
-// elapses), every later call proceeds exactly as before (extra-providers'
-// own start() periodic task keeps re-probing in the background).
 let extraProvidersReadyPromise = null;
 function ensureExtraProvidersReady() {
   ensureExtraProvidersStarted();
