@@ -5,6 +5,10 @@ Each line is prefixed `feat:`, `fix:`, `BREAKING:`, or `deprecation:` (with a mi
 Patch-level version-bump-only commits are omitted as separate entries; their
 content is folded into the following real entry. Plain ASCII only.
 
+## [1.0.249] - 2026-09-20
+
+- fix: `listChatJimmyModels` caches a failed or empty `/api/models` fetch for 30s (`ACPTOAPI_CHATJIMMY_NEGATIVE_TTL_MS`). Live `createServer` GET `/v1/models` was 2064ms then 2016ms because `!ok`/`catch` never wrote the 5-minute success cache.
+
 ## [1.0.248] - 2026-09-20
 
 - fix: pinned-model `buildAutoChainLive` no longer awaits `refreshAll`/`refreshAcpModels` that `buildAutoChain` then discards. Live: 710.7ms vs 3.4ms for `xai-oauth/grok-4.6`. Auto/unknown still refreshes.
