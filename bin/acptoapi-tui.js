@@ -1,22 +1,5 @@
 #!/usr/bin/env node
 'use strict';
-// acptoapi-tui  - atomic CLI by default, optional interactive TUI.
-//
-// Default (no args): prints help.
-// Subcommands (atomic, JSON to stdout  - agent-friendly):
-//   status                       merged snapshot of server health + key counts
-//   chains [list|get N|add N L...|del N]
-//   queues [list|get N|add N L...|del N]
-//   models                       working models from /debug/probe-live
-//   sampler                      provider availability + backoff
-//   runs                         recent chain run history
-//   providers                    ACP daemon health
-//   auto-chain                   resolved fallback order
-//   config                       redacted server config
-//   metrics                      prometheus-style metrics text
-//   tui                          enter interactive multi-pane TUI
-//
-// Env: ACPTOAPI_URL (default http://localhost:4800), ACPTOAPI_API_KEY (legacy AGENTAPI_API_KEY also honored).
 
 const fs = require('fs');
 const path = require('path');
@@ -79,7 +62,6 @@ EXAMPLES
   acptoapi-tui tui
 `;
 
-// ---------- atomic subcommands ----------
 async function cmdStatus() {
   const [h, c, m, s, r, p] = await Promise.all([api('/health'), api('/v1/chains'), api('/debug/probe-live'), api('/v1/sampler/status'), api('/v1/runs'), api('/debug/providers')]);
   out({
@@ -168,7 +150,6 @@ async function cmdSimple(endpoint) {
   out(r.data);
 }
 
-// ---------- interactive TUI ----------
 async function runTui() {
   if (!process.stdin.isTTY) die('TUI needs a TTY; use atomic subcommands instead  - see `acptoapi-tui` for help', 1);
   const readline = require('readline');
@@ -417,7 +398,6 @@ async function runTui() {
   setInterval(async () => { if (S.mode === 'browse') { await refresh(); render(); } }, 5000);
 }
 
-// ---------- dispatch ----------
 async function main() {
   const argv = process.argv.slice(2);
   const cmd = argv[0];

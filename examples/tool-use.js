@@ -1,9 +1,3 @@
-/**
- * tool-use.js  - Tool/function calling with generateGemini and streamGemini
- *
- * Usage:
- *   GEMINI_API_KEY=your-key node examples/tool-use.js
- */
 const { generateGemini, streamGemini } = require('../index');
 
 const tools = {
@@ -17,8 +11,7 @@ const tools = {
       },
       required: ['city']
     },
-    execute: async ({ city, unit = 'celsius' }) => {
-      // Simulated weather data
+    execute: async function getSimulatedWeather({ city, unit = 'celsius' }) {
       return { city, temperature: 22, unit, condition: 'Sunny' };
     }
   },
@@ -31,9 +24,7 @@ const tools = {
       },
       required: ['expression']
     },
-    execute: async ({ expression }) => {
-      // Safe arithmetic-only evaluator. Whitelists digits, decimals, whitespace,
-      // and + - * / ( ). Anything else -> reject. No Function/eval.
+    execute: async function evaluateArithmeticWithoutEval({ expression }) {
       if (typeof expression !== 'string' || !/^[\d+\-*/().\s]+$/.test(expression)) {
         return { error: 'Invalid expression' };
       }

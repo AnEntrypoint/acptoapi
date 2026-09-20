@@ -39,46 +39,35 @@ if (process.argv.slice(2).some(a => a === '--help' || a === '-h')) {
   process.exit(0);
 }
 
-// Load dotenv from both locations with ~/.acptoapi/.env taking precedence
 const devDotEnv = path.join(path.resolve(__dirname, '..'), '.env');
 const userDotEnv = path.join(os.homedir(), '.acptoapi', '.env');
 const envExample = path.join(path.resolve(__dirname, '..'), '.env.example');
 
-// First run on this machine: ~/.acptoapi/.env doesn't exist yet, so nothing
-// tells a fresh user which provider keys this server actually understands --
-// every provider silently reads as "not configured" with no pointer to what
-// to fill in. Scaffold it from the shipped .env.example (the one file that
-// already enumerates every recognized env var) so it shows up once, ready to
-// edit, instead of a user having to go hunting through node_modules for the
-// package's own example file. Copied, not duplicated inline here, so editing
-// .env.example alone keeps this scaffold in sync with no second place to update.
-if (!fs.existsSync(userDotEnv) && fs.existsSync(envExample)) {
+function scaffoldUserEnvFromExampleIfMissing(userDotEnvPath, envExamplePath) {
+  if (fs.existsSync(userDotEnvPath) || !fs.existsSync(envExamplePath)) return;
   try {
-    fs.mkdirSync(path.dirname(userDotEnv), { recursive: true });
-    fs.copyFileSync(envExample, userDotEnv);
-    console.log(`[acptoapi] no ${userDotEnv} yet -- wrote a blank template from .env.example. Fill in the provider keys you have, then restart.`);
+    fs.mkdirSync(path.dirname(userDotEnvPath), { recursive: true });
+    fs.copyFileSync(envExamplePath, userDotEnvPath);
+    console.log(`[acptoapi] no ${userDotEnvPath} yet -- wrote a blank template from .env.example. Fill in the provider keys you have, then restart.`);
   } catch (e) {
-    console.error(`[acptoapi] could not scaffold ${userDotEnv}: ${e.message}`);
+    console.error(`[acptoapi] could not scaffold ${userDotEnvPath}: ${e.message}`);
   }
 }
 
-// Load the dev .env file first
-if (fs.existsSync(devDotEnv)) {
-  require('dotenv').config({ path: devDotEnv });
+function loadDevEnvThenUserEnv(devDotEnvPath, userDotEnvPath) {
+  if (fs.existsSync(devDotEnvPath)) {
+    require('dotenv').config({ path: devDotEnvPath });
+  }
+  if (fs.existsSync(userDotEnvPath)) {
+    require('dotenv').config({ path: userDotEnvPath });
+  }
 }
 
-// Load the user .env file if it exists (overrides dev env)
-if (fs.existsSync(userDotEnv)) {
-  require('dotenv').config({ path: userDotEnv });
-}
+scaffoldUserEnvFromExampleIfMissing(userDotEnv, envExample);
+loadDevEnvThenUserEnv(devDotEnv, userDotEnv);
 
 const { createServer } = require('../lib/server');
 
-// Last-resort guard: log unhandled rejections instead of letting the default
-// node behavior tear the whole acptoapi process (and every ACP daemon it
-// supervises) down. The chain logic recovers from any individual provider
-// failure by falling through to the next link; an uncaught rejection here
-// is always recoverable in spirit.
 process.on('unhandledRejection', (err) => {
   console.error('[acptoapi] unhandledRejection:', err && err.message || err);
 });
@@ -98,11 +87,6 @@ if (kiloBase) backends.kilo = { base: kiloBase };
 if (opencodeBase) backends.opencode = { base: opencodeBase };
 if (claudeBase) backends.claude = { base: claudeBase };
 
-// Curated free-tier metadata: which providers genuinely offer a no-cost tier
-// (permanent free allowance or a trial that doesn't require a credit card),
-// and where to sign up for a key. `free: false` entries are paid-only or
-// require billing info even for a "free trial" - excluded from --missing-free.
-// `free: 'local'` entries need no signup at all (self-hosted / no key).
 const FREE_TIER_INFO = {
   anthropic:      { free: false, signupUrl: 'https://console.anthropic.com/settings/keys', note: 'paid, no permanent free tier' },
   gemini:         { free: true,  signupUrl: 'https://aistudio.google.com/apikey', note: 'generous free tier via Google AI Studio' },
@@ -142,7 +126,7 @@ if (args.includes('--missing-free')) {
   const all = [...builtins, ...listBrands().map(b => ({ name: b, envKey: getBrand(b).envKey }))];
   const missing = all.filter(({ name, envKey }) => {
     const info = FREE_TIER_INFO[name];
-    if (!info || info.free !== true) return false; // skip paid-only and local (no key needed)
+    if (!info || info.free !== true) return false;
     return envKey && !require('../lib/keyring').hasAnyKey(envKey);
   });
   if (missing.length === 0) {
@@ -160,11 +144,6 @@ if (args.includes('--missing-free')) {
 } else if (args.includes('--probe')) {
   (async () => {
     const { listBrands, getBrand } = require('../lib/openai-brands');
-    // Asked through the keyring, not process.env directly: a provider whose
-    // only key is under an indexed name, the JSON-array bag or a
-    // same-credential alias is genuinely configured, and reading the bare env
-    // var reported it as missing -- which for --missing-free meant telling
-    // someone to go sign up for a key they already had.
     const keyring = require('../lib/keyring');
     const count = (k) => keyring.getKeys(k).length;
     const checks = [
