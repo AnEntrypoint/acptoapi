@@ -34,3 +34,9 @@
   SESSION_ID: '1789114650241988781'
   status: witnessed
   witness_evidence: 'Live daemon at localhost:4800: inspection endpoints responded in 3-69ms while an OAuth readiness probe lasted 5050ms asynchronously. Metrics record 527 chat completions averaging 5377ms upstream end-to-end. Isolated SDK proof after the change: direct single-model chat reached its resolver with readinessStarts=0 and extraProvidersLoaded=false, eliminating those background activities from direct agent calls.'
+- id: mut-grok-fallback-root-cause
+  obligation_kind: precondition
+  body: 'Root cause of grok not falling back: ~/.acptoapi/chains.json named chain grok-with-fallback = ["xai-oauth/grok-4.6"], a single-element array. lib/named-chains.js resolveChain() maps it 1:1 to chain-machine links with zero fallback -- confirmed live via .gm/server-restart.log ''attempt=1/1'' and ''[chain] fallback reason=fetch_failed from=xai-oauth/grok-4.6 (exhausted)'' with no second link ever tried. The two other live providers are extra-34595b61/Atria-Dawn-Preview (atria-asi, working) and openai-oauth/gpt-5.6-terra (ChatGPT OAuth, works when not rate-limited); the extra-providers.txt orcarouter entry is registered but has zero working models (account out of credits per extra-probe-cache.json, all probes 402/429) so it is not a viable fallback link.'
+  status: witnessed
+  witness_evidence: 'Read ~/.acptoapi/chains.json (grok-with-fallback: [xai-oauth/grok-4.6]); lib/named-chains.js:97-104 resolveChain maps links array 1:1 with no expansion; .gm/server-restart.log lines 76-101 show attempt=1/1 on every grok stream try, lines 338/351 show fallback reason=exhausted with no second link; extra-probe-cache.json shows orcarouter''s declared model 429 free_rate_limited and all fallback-discovered models 402 insufficient_quota (zero working models).'
+  session_id: acptoapi-grok-fallback-1789936000
