@@ -33,4 +33,3 @@ dist/
 
 # crash artifacts / personal dev scratch scripts, never meant for the repo
 *.stackdump
-config.bat
