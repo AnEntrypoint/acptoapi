@@ -33,3 +33,7 @@ dist/
 
 # crash artifacts / personal dev scratch scripts, never meant for the repo
 *.stackdump
+
+# gateway stdout/stderr captures
+.out.log
+.err.log
