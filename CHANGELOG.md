@@ -5,6 +5,11 @@ Each line is prefixed `feat:`, `fix:`, `BREAKING:`, or `deprecation:` (with a mi
 Patch-level version-bump-only commits are omitted as separate entries; their
 content is folded into the following real entry. Plain ASCII only.
 
+## [1.0.250] - 2026-10-02
+
+- feat: with `OPENROUTER_API_KEY` set, a pinned model continues into the most popular free OpenRouter chat models, in the live free-models collection order. A missing key adds none. Rerankers and other non-chat free models are dropped.
+- fix: a provider body that carries `error` and no choices is an empty chain result, so the next link is tried instead of returning that error as success.
+
 ## [1.0.249] - 2026-09-20
 
 - fix: `listChatJimmyModels` caches a failed or empty `/api/models` fetch for 30s (`ACPTOAPI_CHATJIMMY_NEGATIVE_TTL_MS`). Live `createServer` GET `/v1/models` was 2064ms then 2016ms because `!ok`/`catch` never wrote the 5-minute success cache.
