@@ -5,6 +5,11 @@ Each line is prefixed `feat:`, `fix:`, `BREAKING:`, or `deprecation:` (with a mi
 Patch-level version-bump-only commits are omitted as separate entries; their
 content is folded into the following real entry. Plain ASCII only.
 
+## [1.0.252] - 2026-10-28
+
+- fix: `POST /v1/messages` streams with the caller owning tool execution. Anthropic tools without an `execute` function were turned into an execute-map, so the provider ran the tool itself with a null result and the model answered "empty result" instead of returning a `tool_use` block to Claude Code. Tools are now passed as a bare array, and a turn that calls a tool ends with `stop_reason: tool_use`.
+- fix: a streamed tool-use turn emitted one `message_start`/`message_stop` pair per upstream step, with block indexes reset each step. One message now spans the whole response, indexes stay monotonic, and the single `message_delta`/`message_stop` closes it after upstream ends (`flushSSE`).
+
 ## [1.0.251] - 2026-10-28
 
 - feat: the `xai-oauth` default model is now `xai-oauth/grok-4.7` (was `grok-4.6`). grok-4.7 is served by api.x.ai with a 500k context window.
