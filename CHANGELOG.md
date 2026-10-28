@@ -5,6 +5,11 @@ Each line is prefixed `feat:`, `fix:`, `BREAKING:`, or `deprecation:` (with a mi
 Patch-level version-bump-only commits are omitted as separate entries; their
 content is folded into the following real entry. Plain ASCII only.
 
+## [1.0.251] - 2026-10-28
+
+- feat: the `xai-oauth` default model is now `xai-oauth/grok-4.7` (was `grok-4.6`). grok-4.7 is served by api.x.ai with a 500k context window.
+- fix: `POST /v1/messages` could not serve OAuth-backed brands at all. `xai-oauth/<model>` failed with `Missing null for model: ...` because the Anthropic handler demanded a keyring env key, and that brand's envKey is null by design. OAuth credentials are now resolved from the token store, so `xai-oauth/grok-4.7` works as an Anthropic Messages drop-in; any other OAuth-only brand now reports itself by name instead of `Missing null`.
+
 ## [1.0.250] - 2026-10-02
 
 - feat: with `OPENROUTER_API_KEY` set, a pinned model continues into the most popular free OpenRouter chat models, in the live free-models collection order. A missing key adds none. Rerankers and other non-chat free models are dropped.

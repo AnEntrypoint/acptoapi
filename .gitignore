@@ -35,5 +35,5 @@ dist/
 *.stackdump
 
 # gateway stdout/stderr captures
-.out.log
-.err.log
+*.out.log
+*.err.log
