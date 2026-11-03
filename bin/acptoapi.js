@@ -27,7 +27,7 @@ Options:
   --xai-oauth-login         Run the xAI Grok OAuth device-code login flow
   --openai-oauth-login      Run a separate OpenAI OAuth device-code login flow
                             (existing Codex login is used automatically)
-  --gemini-oauth-login      Run the Google Gemini OAuth login (paste the redirect URL back)
+  --gemini-oauth-login      Sign in to Google Gemini in your browser (paste the address if the browser cannot return here)
   --gemini-oauth-logout     Revoke and delete the stored Gemini OAuth credentials
   --update                  Clear npx/bun caches, report latest npm version, and exit
   --help, -h                Show this help and exit
