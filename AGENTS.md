@@ -101,6 +101,12 @@ Provider `openai-oauth`. NOT device-code like xai-oauth — OpenAI's flow polls 
 
 **Inference = Responses API, not Chat Completions**: `chatgpt.com/backend-api/codex` speaks `input`/`instructions`/tool items, `response.*` SSE, requires `originator: codex_cli_rs` header. `translateToResponses`/`streamChat` convert to/from that shape, yielding the standard `start-step`/`text-delta`/`tool-call`/`finish-step` events. Public `max_output_tokens` is rejected by this endpoint, omitted entirely. `chatgptAccountIdFrom` best-effort-decodes `ChatGPT-Account-Id` from the JWT. This module ≠ `lib/providers/openai-oauth.js` (thin shim). Same `envKey:null` shape as xai-oauth — `buildParams` builds no openai-compat URL/key pair for either.
 
+## Gemini OAuth (lib/gemini-oauth.js)
+
+Google authorization-code + PKCE (S256), ported from Gemini-OAuth-Flow-Boilerplate. Not routed yet: no `gemini-oauth/` prefix in sdk/server/auto-chain; `gemini/` stays on `GEMINI_API_KEY`. CLI `--gemini-oauth-login` / `--gemini-oauth-logout`; store `~/.acptoapi/gemini-oauth.json` (`ACPTOAPI_GEMINI_OAUTH_PATH`) via okeydokey `createFileTokenStore`. Needs `GEMINI_OAUTH_CLIENT_ID` (Desktop app) and optional `GEMINI_OAUTH_CLIENT_SECRET`; refresh reuses the client id stored at login. No listener: the browser lands on `http://localhost/?code=…` (error page expected), the user pastes that URL, `state` is checked.
+
+`access_type=offline&prompt=consent` is required for a refresh token; login fails when Google omits one (the boilerplate silently stored ''). Google access tokens are opaque, not JWTs: expiry is `expires_at`, never `isJwtExpiring`. Only `invalid_grant` sets `refresh_dead`; `invalid_client` does not. Testing-status apps can expire refresh tokens after 7 days. `chatCompletion` posts the bearer to Gemini's OpenAI-compat endpoint: unverified with a real token (fake-credential runs reach Google and get 401).
+
 ## sdk.js buildParams caveats
 
 A prior version force-converted bare-string `tool_choice`→`{type:'required'}` for EVERY openai-compat request (broader mistake than the per-backend fix above) — broke real backends, reverted; `anthropic_tool_choice_to_openai` already correctly converts `{type:'any'}`→bare string. Before `buildParams` special-cased `r.prefix==='xai-oauth'`, a direct in-process `sdk.chat()` call sent `apiKey:undefined` regardless of freshness; `xai-oauth.json`'s `base_url` is a bare root, `buildParams` appends `/chat/completions`. `maybeNamedChain` special-cases literal `'auto'` before prefix resolution (else falls to `splitPrefix`'s fallback `'kilo'`, ECONNREFUSED); a zero-link `buildAutoChain('auto')` falls through to a real error instead of synthesizing one.
@@ -199,4 +205,4 @@ Base `http://127.0.0.1:4800`. `/health`, `/metrics`, `/`, `/demo*`, static asset
 
 `nextCheckIn>0`→backoff'd until elapsed. `ok:null`+`neverProbed:true`→configured but never dispatched. `/v1/keyring/status` `nextRetryInMs>0`→key cooling down. `/v1/runs` `history[]`=`{model,reason,error}`, `attempted[]`=`{model,ms,ok,reason}`. `/debug/providers` `status:'unreachable'`→ACP daemon silent past 2s.
 
-**CLI**: `acptoapi` (start, `--port N`), `--probe` (key presence via keyring), `--missing-free` (free-tier providers with no usable key + signup URL), `--list-brands`, `--list-chains`, `--list-models [--port N]` (ranked by availability), `--xai-oauth-login`, `--update`. No TUI — demo UI at `GET /`/`/demo`.
+**CLI**: `acptoapi` (start, `--port N`), `--probe` (key presence via keyring), `--missing-free` (free-tier providers with no usable key + signup URL), `--list-brands`, `--list-chains`, `--list-models [--port N]` (ranked by availability), `--xai-oauth-login`, `--gemini-oauth-login`, `--gemini-oauth-logout`, `--update`. No TUI — demo UI at `GET /`/`/demo`.

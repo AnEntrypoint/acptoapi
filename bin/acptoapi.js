@@ -27,6 +27,8 @@ Options:
   --xai-oauth-login         Run the xAI Grok OAuth device-code login flow
   --openai-oauth-login      Run a separate OpenAI OAuth device-code login flow
                             (existing Codex login is used automatically)
+  --gemini-oauth-login      Run the Google Gemini OAuth login (paste the redirect URL back)
+  --gemini-oauth-logout     Revoke and delete the stored Gemini OAuth credentials
   --update                  Clear npx/bun caches, report latest npm version, and exit
   --help, -h                Show this help and exit
 
@@ -187,6 +189,15 @@ if (args.includes('--missing-free')) {
 } else if (args.includes('--openai-oauth-login')) {
   const openaiOauth = require('../lib/openai-oauth');
   openaiOauth.login().then(() => process.exit(0)).catch(e => { console.error('[acptoapi] openai-oauth login failed:', e.message); process.exit(1); });
+} else if (args.includes('--gemini-oauth-login')) {
+  const geminiOauth = require('../lib/gemini-oauth');
+  geminiOauth.login().then(() => process.exit(0)).catch(e => { console.error('[acptoapi] gemini-oauth login failed:', e.message); process.exit(1); });
+} else if (args.includes('--gemini-oauth-logout')) {
+  const geminiOauth = require('../lib/gemini-oauth');
+  geminiOauth.logout().then(({ stored, revoked }) => {
+    console.log(!stored ? 'No Gemini OAuth credentials were stored.' : revoked ? 'Gemini OAuth credentials revoked and removed.' : 'Gemini OAuth credentials removed locally; Google did not confirm revocation.');
+    process.exit(0);
+  }).catch(e => { console.error('[acptoapi] gemini-oauth logout failed:', e.message); process.exit(1); });
 } else if (args.includes('--list-models')) {
   (async () => {
     const targetPort = Number(get('--port', process.env.PORT || 4800));
