@@ -206,3 +206,7 @@ Base `http://127.0.0.1:4800`. `/health`, `/metrics`, `/`, `/demo*`, static asset
 `nextCheckIn>0`→backoff'd until elapsed. `ok:null`+`neverProbed:true`→configured but never dispatched. `/v1/keyring/status` `nextRetryInMs>0`→key cooling down. `/v1/runs` `history[]`=`{model,reason,error}`, `attempted[]`=`{model,ms,ok,reason}`. `/debug/providers` `status:'unreachable'`→ACP daemon silent past 2s.
 
 **CLI**: `acptoapi` (start, `--port N`), `--probe` (key presence via keyring), `--missing-free` (free-tier providers with no usable key + signup URL), `--list-brands`, `--list-chains`, `--list-models [--port N]` (ranked by availability), `--xai-oauth-login`, `--gemini-oauth-login`, `--gemini-oauth-logout`, `--update`. No TUI — demo UI at `GET /`/`/demo`.
+
+## gm state
+
+`.gm/prd.yml`, `.gm/mutables.yml`, `.gm/memories/`, `.gm/disciplines/`, `.gm/next-step.md` and the committed dream-rsi and memory rows are cross-session project state. Runtime spools, browser profiles, caches, sqlite databases, per-turn counters, dream-rsi scratch, `.playwriter/`, `runs/` and `.agentplug-kv/` are machine-local and ignored. Crash dumps (`*.stackdump`) and gateway stdout/stderr captures (`*.out.log`, `*.err.log`) are never tracked. `.env` and `.env.local` stay out of the repo.
