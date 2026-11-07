@@ -125,8 +125,6 @@ No mocks: no mock providers, no monkey-patched `sdk.stream`/`sdk.chat`, no stub 
 
 **kilo protocol**: kilo+opencode share one protocol (SSE `GET /event`+REST session/message). Open SSE BEFORE `POST /session/<id>/message` else events drop; terminate on `session.idle`; only assembled content surfaces.
 
-**Live model probe** (`lib/model-probe-live.js`): static curated `KNOWN` dict (SWE-bench score per entry), not dynamic. `getAvailableModels()` = passive cache read; `getAvailableModelsLive({log,force})` = active 1-token probe. `GET /debug/probe-live[?force=1]` triggers it. Env: `ACPTOAPI_LIVE_PROBE=1`, `ACPTOAPI_PROBE_TTL_MS`(600000), `ACPTOAPI_PROBE_CACHE_PATH`. (`_PROBE_CAP`/`_CONCURRENCY`/`_OLLAMA` do NOT exist.)
-
 **Named chains**: `model:<chain-name>` resolves runtime registry (`chains.json`+`ACPTOAPI_CHAINS`+`POST /v1/chains`) → built-in → auto-chain if unrecognized. `BUILTIN.auto` is a `null` sentinel — `handleAnthropicMessages` special-cases it to the live auto-chain path. Built-ins: `fast`, `cheap`, `smart`, `reasoning`, `free`, `hermes-free`, `local` — re-verified, dead ids swapped.
 
 ## Error Classification (lib/chain-machine.js, lib/sampler.js, lib/keyring.js)
@@ -168,13 +166,12 @@ Per-model health updated every attempt; `recordSuccess` EMA-updates latency (dec
 |config.json | ACPTOAPI_CONFIG (then THEBIRD_CONFIG) | `{chains:{name:[...]}}`, `${ENV}` interpolation|
 |queues.json | ACPTOAPI_QUEUES | `{queues:{name:[...]}}` or flat|
 |chains.json | ACPTOAPI_CHAINS_PATH | `{name:[...]}`, merged over built-ins|
-|probe-cache.json | ACPTOAPI_PROBE_CACHE_PATH | `{provider/model:{ok,ts}}`|
 |acp-probe-cache.json | ACPTOAPI_ACP_PROBE_CACHE | `{daemon:{ok,ts}}`, 24h TTL|
 |availability-cache.json | ACPTOAPI_AVAILABILITY_CACHE_PATH | per-model health|
 
-**Boot stagger** (`server.js` listen, fire-and-forget/unref'd): model-probe-live 5000ms, swe-bench-scores 6000ms, brand-catalog refresh 8000ms, readiness warm-up 11000ms (readiness's own interval starts immediately) — staggered since 3+ on the same ~5000ms timer timed out `refreshAll` under boot contention. `ACPTOAPI_DISABLE_BOOT_PROBE=1`/`_DISABLE_PROBE=1` skip the model-probe pass.
+**Boot stagger** (`server.js` listen, fire-and-forget/unref'd): swe-bench-scores 6000ms, brand-catalog refresh 8000ms, readiness warm-up 11000ms (readiness's own interval starts immediately) — staggered since 3+ on the same ~5000ms timer timed out `refreshAll` under boot contention. `ACPTOAPI_DISABLE_BOOT_PROBE=1`/`_DISABLE_PROBE=1` skip the boot refresh passes.
 
-**Env groups**: config paths — `ACPTOAPI_CONFIG`, `THEBIRD_CONFIG`, `ACPTOAPI_QUEUES`, `ACPTOAPI_CHAINS`, `ACPTOAPI_CHAINS_PATH`, `ACPTOAPI_PROBE_CACHE_PATH`, `ACPTOAPI_ACP_PROBE_CACHE`. Routing — `PROVIDER_ORDER`, `ACPTOAPI_DISABLE_AVAILABILITY_RANK=1`, `ACPTOAPI_FREE_TIER_MODE=1` (free-tier to TAIL, never head), `ACPTOAPI_ENABLE_ACP=1` (daemon switch, off), `ACPTOAPI_ENABLE_CHATJIMMY=1` (off), daemon overrides (ACP table), `ACPTOAPI_ENABLE_ACP_AUTOLAUNCH=0`. Keys — Multi-key section. Server — `PORT`(4800), `ACPTOAPI_API_KEY`, `OLLAMA_URL`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, AWS creds, `ACPTOAPI_MAX_BODY_BYTES`(10485760, else `413`), `ACPTOAPI_REQUIRE_AUTH_ON_BIND=1`.
+**Env groups**: config paths — `ACPTOAPI_CONFIG`, `THEBIRD_CONFIG`, `ACPTOAPI_QUEUES`, `ACPTOAPI_CHAINS`, `ACPTOAPI_CHAINS_PATH`, `ACPTOAPI_ACP_PROBE_CACHE`. Routing — `PROVIDER_ORDER`, `ACPTOAPI_DISABLE_AVAILABILITY_RANK=1`, `ACPTOAPI_FREE_TIER_MODE=1` (free-tier to TAIL, never head), `ACPTOAPI_ENABLE_ACP=1` (daemon switch, off), `ACPTOAPI_ENABLE_CHATJIMMY=1` (off), daemon overrides (ACP table), `ACPTOAPI_ENABLE_ACP_AUTOLAUNCH=0`. Keys — Multi-key section. Server — `PORT`(4800), `ACPTOAPI_API_KEY`, `OLLAMA_URL`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, AWS creds, `ACPTOAPI_MAX_BODY_BYTES`(10485760, else `413`), `ACPTOAPI_REQUIRE_AUTH_ON_BIND=1`.
 
 **bin/acptoapi.js**: dotenv loads dev-repo `.env` then `~/.acptoapi/.env`, neither `override:true` — only unset keys are set, so the FIRST-loaded value wins (dev-repo), opposite of load order. First run copies `.env.example`→`~/.acptoapi/.env` if absent. `unhandledRejection`/`uncaughtException` only log, never crash. **index.js**: `extra-providers.js`'s `start()` is fire-and-forget — first call blocks on `ep.loadAndRegisterAsync()`, bounded by `ACPTOAPI_EXTRA_PROVIDERS_BOOT_WAIT_MS`(15000ms), so an early `chat()` can't reference an unregistered `extra-N/*` model.
 
@@ -190,7 +187,6 @@ Base `http://127.0.0.1:4800`. `/health`, `/metrics` public; rest needs `ACPTOAPI
 |GET /debug/providers | `[{name,status,latencyMs}]` — live 2s ACP probe|
 |GET /debug/auto-chain | `{links,order,available}`|
 |GET /debug/chains | `{defined,recent}`|
-|GET /debug/probe-live[?force=1] | `{models,chain,logs}`|
 |GET /debug/config | Runtime config, keys redacted|
 |POST /debug/translate | Test `{from,to,provider,...}` — 8 core providers only|
 |GET /v1/models | Mixed model/queue rows|
@@ -198,7 +194,6 @@ Base `http://127.0.0.1:4800`. `/health`, `/metrics` public; rest needs `ACPTOAPI
 |GET /v1/sampler/status | `{status:[{provider,ok,failCount,nextCheckIn,neverProbed?}]}` — merges sampler's Map with configured providers; synthesizes `{ok:null,neverProbed:true}` for never-dispatched|
 |GET /v1/availability, /v1/runs, /v1/keyring/status | Above|
 |GET /v1/cache/stats, POST /v1/cache/clear | Response-cache|
-|GET /v1/pretest/stats, POST /v1/pretest/run | Pretest|
 |GET /debug/why?model=<id> | `{model,prefix,wouldBeSelectable,blockers:[{layer,detail}],score,availability}` — unifies sampler+keyring gating|
 
 `nextCheckIn>0`→backoff'd until elapsed. `ok:null`+`neverProbed:true`→configured, never dispatched. `/v1/keyring/status` `nextRetryInMs>0`→key cooling. `/v1/runs` `history[]`=`{model,reason,error}`, `attempted[]`=`{model,ms,ok,reason}`. `/debug/providers` `status:'unreachable'`→ACP daemon silent past 2s.
