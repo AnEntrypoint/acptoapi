@@ -11,7 +11,7 @@ function loadDotEnvFilesForLibraryConsumers() {
 }
 loadDotEnvFilesForLibraryConsumers();
 
-const { getClient } = require('./lib/client');
+const { getClient, createStreamActor, Anthropic, OpenAI, createAnthropicServer, createOpenAIServer } = require('./lib/compat');
 const { GeminiError, withRetry } = require('./lib/errors');
 const { convertMessages, convertTools, cleanSchema, extractModelId, buildConfig } = require('./lib/convert');
 const { guardStream } = require('./lib/stream-guard');
@@ -125,11 +125,6 @@ const { streamACP, generateACP } = require('./lib/providers/acp');
 const { translate, translateSync, buffer, stream: translateStream } = require('./lib/translate');
 const { getFormat, FORMATS } = require('./lib/formats/index');
 const { getProvider, PROVIDERS } = require('./lib/providers/index');
-const { createStreamActor } = require('./lib/machine');
-const { Anthropic } = require('./lib/sdk/anthropic');
-const { OpenAI } = require('./lib/sdk/openai');
-const { createAnthropicServer } = require('./lib/server/anthropic');
-const { createOpenAIServer } = require('./lib/server/openai');
 const { resolveModel, chat: _chat, chain, fallback, chatChain: _chatChain, streamChain, resolveNamedChain, listNamedChains, getRunHistory, listAllModelsAndQueues, parseCommaList, splitPrefix } = require('./lib/sdk');
 const { resolveQueue, listAllQueues } = require('./lib/queues');
 const { loadMatrix, matrixScore, clearMatrixCache } = require('./lib/matrix');

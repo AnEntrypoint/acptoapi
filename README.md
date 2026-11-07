@@ -205,22 +205,6 @@ npx acptoapi --list-chains        # list named chains and their resolved links
 npx acptoapi --update             # clear npx/bun caches, report latest npm version
 ```
 
-### TUI / control CLI (`acptoapi-tui`)
-
-Atomic JSON-to-stdout subcommands (agent-friendly) plus an interactive multi-pane mode. Targets a running server at `ACPTOAPI_URL` (default `http://localhost:4800`).
-
-```bash
-npx acptoapi-tui status           # merged server health + key counts
-npx acptoapi-tui chains [list|get N|add N L...|del N]
-npx acptoapi-tui queues [list|get N|add N L...|del N]
-npx acptoapi-tui models           # working models from live probe
-npx acptoapi-tui sampler          # provider availability + backoff
-npx acptoapi-tui runs             # recent chain run history
-npx acptoapi-tui providers        # ACP daemon health
-npx acptoapi-tui auto-chain       # resolved fallback order
-npx acptoapi-tui tui              # interactive multi-pane TUI
-```
-
 ## HTTP endpoints (summary)
 
 | Endpoint | Purpose |

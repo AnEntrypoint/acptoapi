@@ -8,8 +8,7 @@
     "start": "node bin/acptoapi.js"
   },
   "bin": {
-    "acptoapi": "./bin/acptoapi.js",
-    "acptoapi-tui": "./bin/acptoapi-tui.js"
+    "acptoapi": "./bin/acptoapi.js"
   },
   "exports": {
     ".": {

@@ -33,8 +33,7 @@ DEBUG_GUIDE.md
 SPAWN_FIXES.md
 SYSTEM_SETUP.md
 
-# Demo web UI + misc dev scripts not part of the SDK/CLI runtime
-site/
+# Misc dev scripts not part of the SDK/CLI runtime
 traffic-proxy.js
 traffic-proxy2.js
 validate-providers.js
