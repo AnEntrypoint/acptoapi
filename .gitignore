@@ -37,3 +37,6 @@ dist/
 # gateway stdout/stderr captures
 *.out.log
 *.err.log
+.gm/*
+!.gm/research/
+**/.gm/*
